@@ -24528,7 +24528,144 @@
       return "rock";
     return "tree";
   }
-  function prepare(gltf) {
+  var SMOOTH_ANGLE = {
+    tree: 60,
+    rock: 40,
+    pebble: 32
+  };
+  function autoSmoothNormals(geometry, angleDeg) {
+    const position = geometry.attributes.position;
+    const index = geometry.index;
+    const vCount = position.count;
+    const triCount = (index ? index.count : vCount) / 3;
+    if (!triCount)
+      return geometry;
+    const vertAt = (i) => index ? index.getX(i) : i;
+    const face = new Float32Array(triCount * 3);
+    for (let t = 0; t < triCount; t++) {
+      const a = vertAt(t * 3);
+      const b = vertAt(t * 3 + 1);
+      const c = vertAt(t * 3 + 2);
+      const ax = position.getX(a), ay = position.getY(a), az = position.getZ(a);
+      const bx = position.getX(b) - ax, by = position.getY(b) - ay, bz = position.getZ(b) - az;
+      const cx = position.getX(c) - ax, cy = position.getY(c) - ay, cz = position.getZ(c) - az;
+      face[t * 3] = by * cz - bz * cy;
+      face[t * 3 + 1] = bz * cx - bx * cz;
+      face[t * 3 + 2] = bx * cy - by * cx;
+    }
+    const Q = 1e4;
+    const groupOf = new Int32Array(vCount);
+    const groupKeys = /* @__PURE__ */ new Map();
+    const groups = [];
+    for (let v = 0; v < vCount; v++) {
+      const k = Math.round(position.getX(v) * Q) + "," + Math.round(position.getY(v) * Q) + "," + Math.round(position.getZ(v) * Q);
+      let g = groupKeys.get(k);
+      if (g === void 0) {
+        g = groups.length;
+        groupKeys.set(k, g);
+        groups.push({ tris: [] });
+      }
+      groupOf[v] = g;
+    }
+    for (let t = 0; t < triCount; t++) {
+      const seen = /* @__PURE__ */ new Set();
+      for (let k = 0; k < 3; k++) {
+        const g = groupOf[vertAt(t * 3 + k)];
+        if (seen.has(g))
+          continue;
+        seen.add(g);
+        groups[g].tris.push(t);
+      }
+    }
+    const cosLimit = Math.cos(angleDeg * Math.PI / 180);
+    for (const group of groups) {
+      const clusters = [];
+      const clusterOfTri = /* @__PURE__ */ new Map();
+      for (const t of group.tris) {
+        const nx = face[t * 3], ny = face[t * 3 + 1], nz = face[t * 3 + 2];
+        const len = Math.hypot(nx, ny, nz);
+        if (len === 0)
+          continue;
+        const ux = nx / len, uy = ny / len, uz = nz / len;
+        let found = -1;
+        for (let c = 0; c < clusters.length; c++) {
+          const cl2 = clusters[c];
+          const al = Math.hypot(cl2.ax, cl2.ay, cl2.az) || 1;
+          if (ux * (cl2.ax / al) + uy * (cl2.ay / al) + uz * (cl2.az / al) >= cosLimit) {
+            found = c;
+            break;
+          }
+        }
+        if (found < 0) {
+          found = clusters.length;
+          clusters.push({ ax: 0, ay: 0, az: 0 });
+        }
+        const cl = clusters[found];
+        cl.ax += nx;
+        cl.ay += ny;
+        cl.az += nz;
+        clusterOfTri.set(t, found);
+      }
+      group.clusterOfTri = clusterOfTri;
+      group.normals = clusters.map((cl) => {
+        const l = Math.hypot(cl.ax, cl.ay, cl.az) || 1;
+        return [cl.ax / l, cl.ay / l, cl.az / l];
+      });
+    }
+    const copyNames = Object.keys(geometry.attributes).filter((n) => n !== "normal");
+    const out = {};
+    for (const name of copyNames) {
+      const a = geometry.attributes[name];
+      out[name] = { size: a.itemSize, data: [] };
+    }
+    const normals = [];
+    const outMap = /* @__PURE__ */ new Map();
+    const newIndex = [];
+    const component = (a, v, c) => c === 0 ? a.getX(v) : c === 1 ? a.getY(v) : c === 2 ? a.getZ(v) : a.getW(v);
+    for (let t = 0; t < triCount; t++) {
+      for (let k = 0; k < 3; k++) {
+        const v = vertAt(t * 3 + k);
+        const g = groupOf[v];
+        const group = groups[g];
+        let ci = group.clusterOfTri.get(t);
+        if (ci === void 0)
+          ci = 0;
+        const key = v + ":" + g + ":" + ci;
+        let ni = outMap.get(key);
+        if (ni === void 0) {
+          ni = normals.length / 3;
+          outMap.set(key, ni);
+          for (const name of copyNames) {
+            const a = geometry.attributes[name];
+            const rec = out[name];
+            for (let c = 0; c < rec.size; c++)
+              rec.data.push(component(a, v, c));
+          }
+          const n = group.normals[ci] || [0, 1, 0];
+          normals.push(n[0], n[1], n[2]);
+        }
+        newIndex.push(ni);
+      }
+    }
+    const smoothed = new BufferGeometry();
+    for (const name of copyNames) {
+      const rec = out[name];
+      smoothed.setAttribute(
+        name,
+        new BufferAttribute(new Float32Array(rec.data), rec.size)
+      );
+    }
+    smoothed.setAttribute(
+      "normal",
+      new BufferAttribute(new Float32Array(normals), 3)
+    );
+    smoothed.setIndex(newIndex);
+    smoothed.computeBoundingBox();
+    smoothed.computeBoundingSphere();
+    geometry.dispose();
+    return smoothed;
+  }
+  function prepare(gltf, kind) {
     let mesh = null;
     gltf.scene.updateMatrixWorld(true);
     gltf.scene.traverse((o) => {
@@ -24556,7 +24693,8 @@
     });
     if (geometry.attributes.color1)
       geometry.deleteAttribute("color1");
-    return { geometry, material: mesh.material };
+    const smoothed = autoSmoothNormals(geometry, SMOOTH_ANGLE[kind] || 60);
+    return { geometry: smoothed, material: mesh.material };
   }
   function sectorOf(x, z) {
     const a = Math.atan2(z, x) + Math.PI;
@@ -24624,7 +24762,8 @@
         stats.missing.push(name);
         continue;
       }
-      const prepared = prepare(gltf);
+      const kind = kindOf(name);
+      const prepared = prepare(gltf, kind);
       if (!prepared) {
         stats.missing.push(name);
         continue;
@@ -24646,7 +24785,6 @@
           side: DoubleSide
         });
       }
-      const kind = kindOf(name);
       const buckets = Array.from({ length: SECTORS }, () => []);
       for (const p of list) {
         buckets[sectorOf(p[0], p[1])].push(p);
