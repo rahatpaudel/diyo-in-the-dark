@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASCII Diya Loader — Preview</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="loading.css">
+</head>
+<body class="demo-body">
+  <!--
+    Endless preview: the loader is never told the game is ready, so the
+    flame ignites once and then keeps flickering forever. Reload the page
+    to watch the ignition again.
+  -->
+  <div id="ascii-loader" role="status" aria-label="Lighting the diyo">
+    <canvas aria-hidden="true"></canvas>
+    <div class="loader-caption">
+      <span class="loader-title">LOADING</span>
+      <span class="loader-sub" lang="ne">एकैछिन है</span>
+    </div>
+  </div>
+
+  <script src="js/ascii-diya.js"></script>
+  <script>
+    if (window.AsciiDiya) {
+      window.AsciiDiya.autoInit({
+        minDuration: 0,
+        holdDuration: 0,
+        fadeDuration: 0,
+        maxDuration: 0
+      });
+    }
+  </script>
+</body>
+</html>

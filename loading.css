@@ -1,0 +1,134 @@
+/* ------------------------------------------------------------------ */
+/*  Fonts (SIL Open Font License 1.1 — see fonts/OFL-*.txt)            */
+/*                                                                     */
+/*  Both faces are subsetted to the exact glyphs the caption uses and  */
+/*  inlined as data URLs, so the loader renders identically from       */
+/*  file:// and http:// with no extra requests (~6 KB total).          */
+/*  See fonts/README.md to regenerate if the caption text changes.     */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("data:font/woff2;base64,d09GMgABAAAAAAOoABAAAAAAB4AAAANMAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbHhwoBmA/U1RBVF4AXBEICoNkgxcLEgABNgIkAxIEIAWEPgcgDAcbBQbIngNu0zwiOnpkK9khjvL9TzweTWkYD/+tPbtvdr/NImqZJO6JQ0hUqGLRPCSXqBEaiWy6/zenf0BcxCthrjQASlPgFFCYvWlAoSckC08o1ITceH55r4tSDXDCw4HRN1n/A8AWnv9r6uHH08NKkdGMR1GhkTaqVo0ogRSYHtDeiGoYu+AFPkSgCyAJoSUEsiEGlc1bMLkItUqo/6EDH4en/Nn2S2YT0AxDepVpUxyHBulgEgWWssmxAyo7SHTY8uEDLVkAj80203//P1D8jSkjoOz89zNpXHrDCFVCaEvoowJjlO/bE8qWYe8jY2XdhXG6VSuEFD0AAgVSlHEcpPtAKq6NHSCegoRiYUvg11ZaBHTTljTN5uQxZtLMB4Kmpagfu3HfPXfcLtiPCFHTHbRBDyDjGF4CSkCSBL1Qane65DFdqnv1am7YWW3PG/K6rQ0bLj11Hz0wGqqqQ4+P0v6Hh7yhOvRcVhx4qs+7Dz49JZ7n5xZTLrsOPnSbH0UqclT69qyiauToKpeVBFSlKnBvPzUKrcq846QjLWFYwbyBGZbqga5fS1evG/L7T7cH0XRb9/Pftn5wkM76s5lrT0CjJx1sh94b9/F4Zyg8PobZhJZLgXzwLqV6OxfE6i20E8Y7SLVFrFvt2GTChHXCih3xcXaHdf1o/vfSrtreQRA+x9rj+T2xG2Syvj8+D+spfiV7K0fTqjEXKxbymeypKBx7AZMH71CiuWG0ta3WGFvEBIG2g8SsSQWt41Y/bDLaYiW8NQAE0tTyWPNt2mmZ9q1dFJ/gw7trF/Dh/ZvPvwz15LRafERTAsFfDUqbOsD/4U3eXFV9r3XIplVhGetWlaHthLbrmoPPKyRUDipE2cF9PzMyDPFBJt28IgvTHJClKQJkwyCTRNMkLFHQRT+y1M0rsrsu8j/VQz3WoMWREsZkkWLCKCv8woJCssb5ZWFppLCEjCm0BJrUPL+gnBhS2jK/tIwwWgIDIoMoKac7GFwWwzCho5iMw0yb1xda37DagZZUkr5ihgFReEGGxQrgb+fIt5mVRovwo2QxEHKyQmhpGQwCIVlZSRlGcnJB4U6Jc7xkKLQ4uQ2aVg1bRoQq2IrVfggI2bej3ssjAAAA") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Yatra One";
+  src: url("data:font/woff2;base64,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") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------------ */
+/*  ASCII diya loading screen — shared by index.html and loading.html */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --loader-bg: #04050a;
+  --loader-teal: #6fe6d6;
+  --loader-amber: #ffbe72;
+  --loader-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo,
+    Consolas, "DejaVu Sans Mono", monospace;
+}
+
+#ascii-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: var(--loader-bg);
+  opacity: 1;
+  transition: opacity 900ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#ascii-loader.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#ascii-loader.is-removed {
+  display: none;
+}
+
+#ascii-loader canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* While the loader is up, keep the game UI out of the way. */
+body.is-loading {
+  cursor: progress;
+  overflow: hidden;
+}
+
+body.is-loading #overlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#overlay {
+  transition: opacity 900ms ease;
+}
+
+/* ------------------------------------------------------------------ */
+/*  /loading demo harness — just the endless loader                    */
+/* ------------------------------------------------------------------ */
+
+body.demo-body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--loader-bg);
+  color: #cfe9e4;
+  font-family: var(--loader-mono);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Caption under the diya                                            */
+/* ------------------------------------------------------------------ */
+
+.loader-caption {
+  position: absolute;
+  left: 50%;
+  /* Anchored to the real bottom of the glyph grid (published by the
+     renderer), so the gap stays identical on every viewport. */
+  top: calc(var(--diya-bottom, 50%) + 42px);
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.loader-title {
+  font-family: "JetBrains Mono", var(--loader-mono);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: #ffc078;
+  text-shadow: 0 0 16px rgba(255, 150, 60, 0.6), 0 0 42px rgba(255, 120, 30, 0.28);
+}
+
+.loader-sub {
+  font-family: "Yatra One", "Noto Sans Devanagari", var(--loader-mono);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: #b9f4e6;
+  text-shadow: 0 0 14px rgba(111, 230, 214, 0.45), 0 0 38px rgba(111, 230, 214, 0.18);
+}

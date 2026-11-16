@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diyo in the Dark — Tihar Web Game</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="loading.css">
+</head>
+<body class="is-loading">
+  <!-- Animated ASCII loading screen. Fades out once the game signals ready. -->
+  <div id="ascii-loader" role="status" aria-label="Lighting the diyo">
+    <canvas aria-hidden="true"></canvas>
+    <div class="loader-caption">
+      <span class="loader-title">LOADING</span>
+      <span class="loader-sub" lang="ne">एकैछिन है</span>
+    </div>
+  </div>
+
+  <canvas id="game-canvas"></canvas>
+
+  <div id="ui">
+    <div id="crosshair">+</div>
+
+    <div id="instructions">
+      Click to start &bull; WASD to move &bull; Mouse to look &bull; <b>E</b> to interact
+    </div>
+
+    <div id="message"></div>
+  </div>
+
+  <div id="overlay">
+    <h1>DIYO IN THE DARK</h1>
+    <p>Carry your lamp through the dark forest.<br>Reach the isolated house and light its rangoli.</p>
+    <button id="start-btn">Light the Diyo &mdash; Start Game</button>
+    <div id="boot-error"></div>
+  </div>
+
+  <pre id="debug-error"></pre>
+
+  <script>
+    // Surface any runtime error on screen instead of failing silently.
+    window.__DIYO_SHOW_ERROR = function (err) {
+      var box = document.getElementById('debug-error');
+      if (!box) return;
+      box.style.display = 'block';
+      box.textContent =
+        'Game error:\n' +
+        (err && err.stack ? err.stack : String(err)) +
+        '\n\nTip: if this is a "file://" CORS error, run a local server:\n  node server.js';
+    };
+
+    window.addEventListener('error', function (e) {
+      window.__DIYO_SHOW_ERROR(e.error || e.message || 'Unknown error');
+    });
+
+    window.addEventListener('unhandledrejection', function (e) {
+      window.__DIYO_SHOW_ERROR(e.reason || 'Unhandled promise rejection');
+    });
+
+    // If the game script never initializes, tell the user why.
+    setTimeout(function () {
+      if (window.__DIYO_READY) return;
+      var banner = document.getElementById('boot-error');
+      if (!banner) return;
+      banner.style.display = 'block';
+      if (location.protocol === 'file:') {
+        banner.innerHTML =
+          'This game must be served over http://, not opened as a file.<br>' +
+          'Run <code>node server.js</code> in the project folder, then open ' +
+          '<code>http://localhost:3000</code>.';
+      } else {
+        banner.textContent =
+          'The game script failed to load. Check the browser console for details.';
+      }
+    }, 2500);
+  </script>
+
+  <!-- ASCII diya loader (classic script, works from file:// too) -->
+  <script src="js/ascii-diya.js"></script>
+  <script>
+    // Start the loading screen immediately. The game calls
+    // AsciiDiya.loader.ready() once its first frame is on screen.
+    (function () {
+      var box = document.getElementById('ascii-loader');
+      var loader = window.AsciiDiya
+        ? window.AsciiDiya.autoInit({
+            // Purely the minimum time the ignition animation gets; the loader
+            // itself is dismissed by the world load, never by a timer.
+            minDuration: 1400,
+            holdDuration: 300,
+            maxDuration: 0
+          })
+        : null;
+      if (!loader) {
+        // Never let a broken loader hide the game.
+        document.body.classList.remove('is-loading');
+        if (box) box.style.display = 'none';
+      }
+    })();
+  </script>
+
+  <!-- Bundled as a classic script so it also works from file:// -->
+  <script src="js/bundle.js"></script>
+</body>
+</html>
