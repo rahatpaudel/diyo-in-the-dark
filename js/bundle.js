@@ -20780,6 +20780,21 @@
       return data;
     }
   };
+  var HemisphereLight = class extends Light {
+    constructor(skyColor, groundColor, intensity) {
+      super(skyColor, intensity);
+      this.isHemisphereLight = true;
+      this.type = "HemisphereLight";
+      this.position.copy(Object3D.DEFAULT_UP);
+      this.updateMatrix();
+      this.groundColor = new Color(groundColor);
+    }
+    copy(source, recursive) {
+      super.copy(source, recursive);
+      this.groundColor.copy(source.groundColor);
+      return this;
+    }
+  };
   var _projScreenMatrix$1 = /* @__PURE__ */ new Matrix4();
   var _lightPositionWorld$1 = /* @__PURE__ */ new Vector3();
   var _lookTarget$1 = /* @__PURE__ */ new Vector3();
@@ -24830,6 +24845,9 @@
     playing: false,
     gameOver: false,
     won: false,
+    // Secret free-fly inspection mode (toggled with V during play).
+    spectator: false,
+    spectatorSpeed: 12,
     keys: {},
     moveSpeed: 3,
     mouseSensitivity: 2e-3,
@@ -24854,6 +24872,9 @@
   var light;
   var house;
   var environment = null;
+  var ground = null;
+  var spectatorSaved = null;
+  var spectatorLights = null;
   function init() {
     scene = new Scene();
     scene.background = new Color(197382);
@@ -24964,7 +24985,7 @@
   function buildGround() {
     const geo = new PlaneGeometry(220, 220);
     const mat = new MeshStandardMaterial({ color: 1186578, roughness: 1 });
-    const ground = new Mesh(geo, mat);
+    ground = new Mesh(geo, mat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
@@ -25008,10 +25029,80 @@
     scene.add(house);
   }
   function onKeyDown(e) {
+    if (e.code === "KeyV" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && state.playing && !state.gameOver && !state.won) {
+      toggleSpectator();
+      return;
+    }
+    if (state.spectator && (e.code === "Space" || e.code === "ShiftLeft" || e.code === "ShiftRight")) {
+      e.preventDefault();
+    }
     state.keys[e.code] = true;
   }
   function onKeyUp(e) {
     state.keys[e.code] = false;
+  }
+  function toggleSpectator() {
+    if (state.spectator)
+      exitSpectator();
+    else
+      enterSpectator();
+  }
+  function enterSpectator() {
+    if (state.spectator || !state.playing || state.gameOver || state.won)
+      return;
+    state.spectator = true;
+    state.keys = {};
+    state.accumulatedTime = 0;
+    UI.message.style.display = "none";
+    spectatorSaved = {
+      position: camera.position.clone(),
+      yaw: state.yaw,
+      pitch: state.pitch,
+      fog: scene.fog,
+      background: scene.background.clone(),
+      groundColor: ground.material.color.clone(),
+      lightIntensity: light.intensity,
+      lightVisible: light.visible,
+      lightCastShadow: light.castShadow
+    };
+    scene.fog = null;
+    scene.background.set(9414340);
+    ground.material.color.set(3756602);
+    light.visible = false;
+    const sun = new DirectionalLight(16773853, 5);
+    sun.position.set(-30, 45, 20);
+    sun.target.position.set(0, 0, -10);
+    const sky = new HemisphereLight(13623551, 5918784, 4);
+    scene.add(sun, sun.target, sky);
+    spectatorLights = { sun, sky };
+    document.body.classList.add("is-spectator");
+  }
+  function exitSpectator() {
+    if (!state.spectator)
+      return;
+    state.spectator = false;
+    state.keys = {};
+    state.accumulatedTime = 0;
+    if (spectatorLights) {
+      scene.remove(spectatorLights.sun.target);
+      scene.remove(spectatorLights.sun);
+      scene.remove(spectatorLights.sky);
+      spectatorLights = null;
+    }
+    if (spectatorSaved) {
+      scene.fog = spectatorSaved.fog;
+      scene.background.copy(spectatorSaved.background);
+      ground.material.color.copy(spectatorSaved.groundColor);
+      light.visible = spectatorSaved.lightVisible;
+      light.intensity = spectatorSaved.lightIntensity;
+      light.castShadow = spectatorSaved.lightCastShadow;
+      camera.position.copy(spectatorSaved.position);
+      state.yaw = spectatorSaved.yaw;
+      state.pitch = spectatorSaved.pitch;
+      camera.rotation.set(state.pitch, state.yaw, 0);
+      spectatorSaved = null;
+    }
+    document.body.classList.remove("is-spectator");
   }
   function onMouseMove(e) {
     if (!state.playing || state.gameOver || state.won || document.pointerLockElement !== document.body) {
@@ -25038,7 +25129,7 @@
     } else {
       UI.crosshair.style.display = "none";
       if (state.playing && !state.gameOver && !state.won) {
-        UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
+        UI.instructions.textContent = state.spectator ? "Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit" : "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
         UI.instructions.style.display = "block";
       } else {
         UI.instructions.style.display = "none";
@@ -25088,6 +25179,34 @@
       UI.message.style.display = "none";
     }
   }
+  function updateSpectator(dt) {
+    if (!state.spectator || !state.playing)
+      return;
+    const speed = state.spectatorSpeed * dt;
+    const move = new Vector3();
+    const forward = new Vector3();
+    camera.getWorldDirection(forward);
+    const flat = new Vector3(forward.x, 0, forward.z);
+    if (flat.lengthSq() < 1e-6)
+      flat.set(-Math.sin(state.yaw), 0, -Math.cos(state.yaw));
+    flat.normalize();
+    const right = new Vector3().crossVectors(flat, camera.up).normalize();
+    if (state.keys["KeyW"])
+      move.add(forward);
+    if (state.keys["KeyS"])
+      move.sub(forward);
+    if (state.keys["KeyA"])
+      move.sub(right);
+    if (state.keys["KeyD"])
+      move.add(right);
+    if (state.keys["Space"])
+      move.y += 1;
+    if (state.keys["ShiftLeft"] || state.keys["ShiftRight"])
+      move.y -= 1;
+    if (move.lengthSq() > 0) {
+      camera.position.addScaledVector(move.normalize(), speed);
+    }
+  }
   function endGame() {
     state.playing = false;
     state.gameOver = true;
@@ -25122,7 +25241,10 @@
     const delta = Math.min(clock.getDelta(), 0.1);
     state.accumulatedTime += delta;
     while (state.accumulatedTime >= state.fixedDt) {
-      updatePlayer(state.fixedDt);
+      if (state.spectator)
+        updateSpectator(state.fixedDt);
+      else
+        updatePlayer(state.fixedDt);
       state.accumulatedTime -= state.fixedDt;
     }
     renderer.render(scene, camera);
@@ -25133,6 +25255,7 @@
     window.__DIYO_DEBUG.camera = camera;
     window.__DIYO_DEBUG.scene = scene;
     window.__DIYO_DEBUG.renderer = renderer;
+    window.__DIYO_DEBUG.toggleSpectator = toggleSpectator;
     window.__DIYO_READY = true;
   } catch (err) {
     console.error("Diyo failed to start:", err);

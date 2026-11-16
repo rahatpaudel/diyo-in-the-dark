@@ -162,3 +162,35 @@ body {
 #ui #crosshair {
   display: none;
 }
+
+/* Secret spectator mode tag. Hidden until the mode is toggled. */
+#spectator-hud {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  z-index: 15;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(10, 14, 20, 0.72);
+  border: 1px solid rgba(160, 200, 255, 0.35);
+  color: #dce8ff;
+  font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo,
+    Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+#spectator-hud b {
+  color: #9fd1ff;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+}
+
+body.is-spectator #spectator-hud {
+  display: flex;
+}

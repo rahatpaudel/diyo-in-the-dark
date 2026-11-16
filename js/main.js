@@ -9,6 +9,10 @@ const state = {
   gameOver: false,
   won: false,
 
+  // Secret free-fly inspection mode (toggled with V during play).
+  spectator: false,
+  spectatorSpeed: 12,
+
   keys: {},
   moveSpeed: 3,
 
@@ -40,6 +44,11 @@ const UI = {
 let scene, camera, renderer, clock;
 let light, house;
 let environment = null;
+let ground = null;
+
+// Saved when entering spectator mode so exiting puts everything back.
+let spectatorSaved = null;
+let spectatorLights = null;
 
 /* ------------------------------------------------------------------ */
 /*  Initialization                                                    */
@@ -211,7 +220,7 @@ function startGame() {
 function buildGround() {
   const geo = new THREE.PlaneGeometry(220, 220);
   const mat = new THREE.MeshStandardMaterial({ color: 0x121b12, roughness: 1 });
-  const ground = new THREE.Mesh(geo, mat);
+  ground = new THREE.Mesh(geo, mat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
@@ -273,11 +282,111 @@ function buildHouse() {
 /*  Input                                                             */
 /* ------------------------------------------------------------------ */
 function onKeyDown(e) {
+  // Hidden spectator toggle. Deliberately absent from the normal HUD.
+  if (
+    e.code === 'KeyV' &&
+    !e.repeat &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey &&
+    state.playing &&
+    !state.gameOver &&
+    !state.won
+  ) {
+    toggleSpectator();
+    return;
+  }
+
+  // In spectator mode Space/Shift are flight controls, not page scroll.
+  if (
+    state.spectator &&
+    (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')
+  ) {
+    e.preventDefault();
+  }
+
   state.keys[e.code] = true;
 }
 
 function onKeyUp(e) {
   state.keys[e.code] = false;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Secret spectator mode                                             */
+/* ------------------------------------------------------------------ */
+function toggleSpectator() {
+  if (state.spectator) exitSpectator();
+  else enterSpectator();
+}
+
+function enterSpectator() {
+  if (state.spectator || !state.playing || state.gameOver || state.won) return;
+  state.spectator = true;
+  state.keys = {};
+  state.accumulatedTime = 0;
+  UI.message.style.display = 'none';
+
+  // Remember the player's spot so leaving the mode puts them back on the
+  // ground exactly where they were, not wherever the camera flew to.
+  spectatorSaved = {
+    position: camera.position.clone(),
+    yaw: state.yaw,
+    pitch: state.pitch,
+    fog: scene.fog,
+    background: scene.background.clone(),
+    groundColor: ground.material.color.clone(),
+    lightIntensity: light.intensity,
+    lightVisible: light.visible,
+    lightCastShadow: light.castShadow
+  };
+
+  // Fullbright inspection: no fog, a daylight sky, no orange cone, and soft
+  // shadowless light from every direction instead of the diyo's cramped pool.
+  scene.fog = null;
+  scene.background.set(0x8fa6c4);
+  ground.material.color.set(0x39523a);
+  light.visible = false;
+
+  const sun = new THREE.DirectionalLight(0xfff2dd, 5);
+  sun.position.set(-30, 45, 20);
+  sun.target.position.set(0, 0, -10);
+  const sky = new THREE.HemisphereLight(0xcfe0ff, 0x5a5040, 4);
+  scene.add(sun, sun.target, sky);
+  spectatorLights = { sun, sky };
+
+  document.body.classList.add('is-spectator');
+}
+
+function exitSpectator() {
+  if (!state.spectator) return;
+  state.spectator = false;
+  state.keys = {};
+  state.accumulatedTime = 0;
+
+  if (spectatorLights) {
+    scene.remove(spectatorLights.sun.target);
+    scene.remove(spectatorLights.sun);
+    scene.remove(spectatorLights.sky);
+    spectatorLights = null;
+  }
+
+  if (spectatorSaved) {
+    scene.fog = spectatorSaved.fog;
+    scene.background.copy(spectatorSaved.background);
+    ground.material.color.copy(spectatorSaved.groundColor);
+    light.visible = spectatorSaved.lightVisible;
+    light.intensity = spectatorSaved.lightIntensity;
+    light.castShadow = spectatorSaved.lightCastShadow;
+
+    camera.position.copy(spectatorSaved.position);
+    state.yaw = spectatorSaved.yaw;
+    state.pitch = spectatorSaved.pitch;
+    camera.rotation.set(state.pitch, state.yaw, 0);
+    spectatorSaved = null;
+  }
+
+  document.body.classList.remove('is-spectator');
 }
 
 function onMouseMove(e) {
@@ -320,8 +429,9 @@ function onPointerLockChange() {
   } else {
     UI.crosshair.style.display = 'none';
     if (state.playing && !state.gameOver && !state.won) {
-      UI.instructions.textContent =
-        'Click to resume • WASD to move • Mouse to look • E to interact';
+      UI.instructions.textContent = state.spectator
+        ? 'Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit'
+        : 'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
       UI.instructions.style.display = 'block';
     } else {
       UI.instructions.style.display = 'none';
@@ -385,6 +495,37 @@ function checkInteractions() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Spectator flight (fixed timestep)                                 */
+/* ------------------------------------------------------------------ */
+function updateSpectator(dt) {
+  if (!state.spectator || !state.playing) return;
+
+  const speed = state.spectatorSpeed * dt;
+  const move = new THREE.Vector3();
+
+  // W follows the full view direction, so looking up and pressing W climbs.
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+
+  // Keep strafing horizontal even when pitched straight up or down.
+  const flat = new THREE.Vector3(forward.x, 0, forward.z);
+  if (flat.lengthSq() < 1e-6) flat.set(-Math.sin(state.yaw), 0, -Math.cos(state.yaw));
+  flat.normalize();
+  const right = new THREE.Vector3().crossVectors(flat, camera.up).normalize();
+
+  if (state.keys['KeyW']) move.add(forward);
+  if (state.keys['KeyS']) move.sub(forward);
+  if (state.keys['KeyA']) move.sub(right);
+  if (state.keys['KeyD']) move.add(right);
+  if (state.keys['Space']) move.y += 1;
+  if (state.keys['ShiftLeft'] || state.keys['ShiftRight']) move.y -= 1;
+
+  if (move.lengthSq() > 0) {
+    camera.position.addScaledVector(move.normalize(), speed);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  End game                                                          */
 /* ------------------------------------------------------------------ */
 function endGame() {
@@ -433,7 +574,8 @@ function animate() {
   // Fixed timestep for consistent gameplay regardless of frame rate
   state.accumulatedTime += delta;
   while (state.accumulatedTime >= state.fixedDt) {
-    updatePlayer(state.fixedDt);
+    if (state.spectator) updateSpectator(state.fixedDt);
+    else updatePlayer(state.fixedDt);
     state.accumulatedTime -= state.fixedDt;
   }
 
@@ -447,6 +589,7 @@ try {
   window.__DIYO_DEBUG.camera = camera;
   window.__DIYO_DEBUG.scene = scene;
   window.__DIYO_DEBUG.renderer = renderer;
+  window.__DIYO_DEBUG.toggleSpectator = toggleSpectator;
   window.__DIYO_READY = true;
 } catch (err) {
   console.error('Diyo failed to start:', err);
