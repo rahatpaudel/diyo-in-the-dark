@@ -21602,6 +21602,64 @@
     ]
   ];
   var _controlInterpolantsResultBuffer = new Float32Array(1);
+  var Raycaster = class {
+    constructor(origin, direction, near = 0, far = Infinity) {
+      this.ray = new Ray(origin, direction);
+      this.near = near;
+      this.far = far;
+      this.camera = null;
+      this.layers = new Layers();
+      this.params = {
+        Mesh: {},
+        Line: { threshold: 1 },
+        LOD: {},
+        Points: { threshold: 1 },
+        Sprite: {}
+      };
+    }
+    set(origin, direction) {
+      this.ray.set(origin, direction);
+    }
+    setFromCamera(coords, camera2) {
+      if (camera2.isPerspectiveCamera) {
+        this.ray.origin.setFromMatrixPosition(camera2.matrixWorld);
+        this.ray.direction.set(coords.x, coords.y, 0.5).unproject(camera2).sub(this.ray.origin).normalize();
+        this.camera = camera2;
+      } else if (camera2.isOrthographicCamera) {
+        this.ray.origin.set(coords.x, coords.y, (camera2.near + camera2.far) / (camera2.near - camera2.far)).unproject(camera2);
+        this.ray.direction.set(0, 0, -1).transformDirection(camera2.matrixWorld);
+        this.camera = camera2;
+      } else {
+        console.error("THREE.Raycaster: Unsupported camera type: " + camera2.type);
+      }
+    }
+    intersectObject(object, recursive = true, intersects = []) {
+      intersectObject(object, this, intersects, recursive);
+      intersects.sort(ascSort);
+      return intersects;
+    }
+    intersectObjects(objects, recursive = true, intersects = []) {
+      for (let i = 0, l = objects.length; i < l; i++) {
+        intersectObject(objects[i], this, intersects, recursive);
+      }
+      intersects.sort(ascSort);
+      return intersects;
+    }
+  };
+  function ascSort(a, b) {
+    return a.distance - b.distance;
+  }
+  function intersectObject(object, raycaster, intersects, recursive) {
+    if (object.layers.test(raycaster.layers)) {
+      object.raycast(raycaster, intersects);
+    }
+    if (recursive === true) {
+      const children = object.children;
+      for (let i = 0, l = children.length; i < l; i++) {
+        intersectObject(children[i], raycaster, intersects, true);
+      }
+    }
+  }
   if (typeof __THREE_DEVTOOLS__ !== "undefined") {
     __THREE_DEVTOOLS__.dispatchEvent(new CustomEvent("register", { detail: {
       revision: REVISION
@@ -24189,7 +24247,7 @@
   // js/forest-data.js
   var FOREST = {
     Tree_On_Rock: [
-      [-9.4, 0.7, 2.25, 1]
+      [-2.8, -1.4, 2.25, 0.65]
     ],
     Tree_Small_1: [
       [-5.1, 55.5, 4.654, 1.09],
@@ -25095,6 +25153,11 @@
     function setVisible(v) {
       mesh.visible = v;
     }
+    function setWickPosition(x, y, z, scale = 1) {
+      const s = scale > 0 ? scale : 1;
+      mesh.scale.setScalar(s);
+      mesh.position.set(x, y + 0.0864 * s, z);
+    }
     function dispose() {
       camera2.remove(mesh);
       geometry.dispose();
@@ -25105,6 +25168,7 @@
       uniforms,
       update,
       setVisible,
+      setWickPosition,
       dispose,
       get flicker() {
         return flicker;
@@ -25118,11 +25182,404 @@
     };
   }
 
+  // js/intro.js
+  var HAND_DIR = "models/";
+  var LEFT_URL = HAND_DIR + "hand_left.glb";
+  var RIGHT_URL = HAND_DIR + "hand_right.glb";
+  var RIGHT_POSE = {
+    position: [0.43, -0.45, -0.13],
+    rotation: [-0.15, 0, 0],
+    scale: 0.8
+  };
+  var STRIKE_YAW = 0.83;
+  var STRIKE_PITCH = -0.25;
+  var STRIKE_ROT = [0.16, -0.7, 0.05];
+  var STRIKE_SCALE = 0.9;
+  var LIGHT_ROT = [-0.06, -0.34, 0.04];
+  var LIGHT_SCALE = 0.72;
+  var FLAME_MATCH_SCALE = 0.5;
+  var PULLBACK = new Vector3(0.01, 0.05, 0.11);
+  var SCRAPE_DISTANCE = 0.07;
+  var PAN_END = 1.25;
+  var APPROACH_END = 1.55;
+  var SCRAPE1_END = 1.85;
+  var SCRAPE2_END = 2.3;
+  var IGNITE_AT = SCRAPE1_END + 0.16;
+  var CARRY_START = 2.8;
+  var CARRY_END = 4.3;
+  var TRANSFER_END = 4.7;
+  var DROP_END = 5.35;
+  var END = 5.8;
+  var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+  var lerp2 = (a, b, t) => a + (b - a) * t;
+  var smooth = (t) => {
+    t = clamp01(t);
+    return t * t * (3 - 2 * t);
+  };
+  var smoother = (t) => {
+    t = clamp01(t);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  };
+  function loadOne(loader, url) {
+    return new Promise((resolve, reject) => {
+      loader.load(url, resolve, void 0, reject);
+    });
+  }
+  function prepare2(root, isLeft) {
+    root.traverse((o) => {
+      if (!o.isMesh)
+        return;
+      o.castShadow = false;
+      o.receiveShadow = false;
+      o.frustumCulled = false;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m)
+          continue;
+        m.side = FrontSide;
+        if (m.metalness !== void 0)
+          m.metalness = 0;
+        if (m.roughness !== void 0)
+          m.roughness = Math.min(m.roughness, 0.82);
+        if (m.emissive) {
+          m.emissive.setHex(2757641);
+          m.emissiveIntensity = isLeft ? 0.5 : 0.42;
+        }
+        m.needsUpdate = true;
+      }
+    });
+  }
+  function loadHands() {
+    const loader = new GLTFLoader();
+    return Promise.all([loadOne(loader, LEFT_URL), loadOne(loader, RIGHT_URL)]).then(([left, right]) => {
+      prepare2(left.scene, true);
+      prepare2(right.scene, false);
+      return { left: left.scene, right: right.scene };
+    }).catch((err) => {
+      console.warn("[hands] could not load hand models:", err && err.message);
+      return null;
+    });
+  }
+  function createIntro({ camera: camera2, flame: flame2, spot, hands, environment: environment2, setView: setView2, onDone }) {
+    const { left, right } = hands;
+    const matchTip = left.getObjectByName("match_tip");
+    const diyaWick = right.getObjectByName("diya_wick");
+    if (!matchTip || !diyaWick) {
+      console.warn("[intro] hand rig is missing match_tip or diya_wick");
+      return null;
+    }
+    right.position.fromArray(RIGHT_POSE.position);
+    right.rotation.set(...RIGHT_POSE.rotation);
+    right.scale.setScalar(RIGHT_POSE.scale);
+    camera2.add(right);
+    right.updateMatrixWorld(true);
+    const wickLocal = new Vector3();
+    diyaWick.getWorldPosition(wickLocal);
+    camera2.worldToLocal(wickLocal);
+    left.visible = false;
+    left.scale.set(-STRIKE_SCALE, STRIKE_SCALE, STRIKE_SCALE);
+    camera2.add(left);
+    const handLight = new PointLight(16751164, 0, 3.2, 2);
+    handLight.position.copy(wickLocal).add(new Vector3(0, 0.1, 0));
+    camera2.add(handLight);
+    flame2.setVisible(false);
+    spot.intensity = 0;
+    const rock = environment2 && environment2.meshes ? environment2.meshes.find((m) => m.name && m.name.startsWith("Tree_On_Rock")) : null;
+    const raycaster = new Raycaster();
+    const strikeWorld = new Vector3(-1.32, 1.14, -1.21);
+    const strikeLocal = new Vector3();
+    const strikePos = new Vector3();
+    const readyPos = new Vector3();
+    const offPos = new Vector3();
+    const lightPos = new Vector3();
+    const lightTipLocal = new Vector3();
+    const carryStartTip = new Vector3();
+    const tangentLocal = new Vector3(1, 0, 0);
+    const scratch = new Vector3();
+    const solveScratch = new Vector3();
+    let started = false;
+    let finished = false;
+    let time = 0;
+    let lit = false;
+    let flare = 1;
+    let leftDropped = false;
+    let paused = false;
+    function solveLeftClean(targetLocal, rot, scale) {
+      left.position.set(0, 0, 0);
+      left.rotation.set(rot[0], rot[1], rot[2]);
+      left.scale.set(-scale, scale, scale);
+      left.updateMatrixWorld(true);
+      matchTip.getWorldPosition(solveScratch);
+      camera2.worldToLocal(solveScratch);
+      left.position.add(targetLocal).sub(solveScratch);
+      left.updateMatrixWorld(true);
+    }
+    function findStrike() {
+      if (!rock)
+        return;
+      rock.updateMatrixWorld(true);
+      const dir = new Vector3(
+        -Math.sin(STRIKE_YAW) * Math.cos(STRIKE_PITCH),
+        Math.sin(STRIKE_PITCH),
+        -Math.cos(STRIKE_YAW) * Math.cos(STRIKE_PITCH)
+      ).normalize();
+      raycaster.set(camera2.position, dir);
+      const hits = raycaster.intersectObject(rock, false);
+      if (hits.length) {
+        strikeWorld.copy(hits[0].point);
+        const face = hits[0].face;
+        if (face) {
+          const instance = new Matrix4();
+          rock.getMatrixAt(0, instance);
+          const world = new Matrix4().multiplyMatrices(rock.matrixWorld, instance);
+          const n = face.normal.clone().applyMatrix3(new Matrix3().getNormalMatrix(world)).normalize();
+          const down = new Vector3(0, -1, 0);
+          const tangent = down.addScaledVector(n, -down.dot(n));
+          if (tangent.lengthSq() > 1e-5)
+            tangent.normalize();
+          else
+            tangent.set(1, 0, 0);
+          const a = camera2.worldToLocal(strikeWorld.clone());
+          const b = camera2.worldToLocal(strikeWorld.clone().add(tangent));
+          tangentLocal.copy(b).sub(a).normalize();
+        }
+      }
+    }
+    function start() {
+      if (started)
+        return;
+      started = true;
+      time = 0;
+      setView2(STRIKE_YAW, STRIKE_PITCH);
+      camera2.updateMatrixWorld(true);
+      findStrike();
+      strikeLocal.copy(strikeWorld);
+      camera2.worldToLocal(strikeLocal);
+      solveLeftClean(strikeLocal, STRIKE_ROT, STRIKE_SCALE);
+      strikePos.copy(left.position);
+      carryStartTip.copy(strikeLocal).add(PULLBACK);
+      readyPos.copy(strikePos).add(new Vector3(0.02, 0.07, 0.13));
+      offPos.copy(strikePos).add(new Vector3(0.02, -1.15, 0.22));
+      lightTipLocal.copy(wickLocal).add(new Vector3(0, 0.07, 0.015));
+      solveLeftClean(lightTipLocal, LIGHT_ROT, LIGHT_SCALE);
+      lightPos.copy(left.position);
+      left.position.copy(offPos);
+      left.rotation.set(...STRIKE_ROT);
+      left.scale.set(-STRIKE_SCALE, STRIKE_SCALE, STRIKE_SCALE);
+      left.visible = true;
+      left.updateMatrixWorld(true);
+      setView2(0, 0);
+      camera2.updateMatrixWorld(true);
+      flame2.setVisible(false);
+      spot.intensity = 0;
+      handLight.intensity = 0;
+    }
+    function ignite() {
+      if (lit)
+        return;
+      lit = true;
+      flare = 2.1;
+      flame2.setVisible(true);
+    }
+    function dropLeft() {
+      if (leftDropped)
+        return;
+      leftDropped = true;
+      left.visible = false;
+      camera2.remove(left);
+      left.traverse((o) => {
+        if (!o.isMesh)
+          return;
+        if (o.geometry)
+          o.geometry.dispose();
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats)
+          if (m)
+            m.dispose();
+      });
+    }
+    function finish() {
+      if (finished)
+        return;
+      finished = true;
+      left.visible = false;
+      dropLeft();
+      flame2.setVisible(true);
+      flame2.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
+      handLight.position.copy(wickLocal);
+      handLight.position.y += 0.08;
+      handLight.intensity = 3.2;
+      spot.intensity = 40;
+      flare = 1;
+      setView2(0, 0);
+      if (onDone)
+        onDone();
+    }
+    function tipLocal(out) {
+      matchTip.getWorldPosition(out);
+      camera2.worldToLocal(out);
+      return out;
+    }
+    function update(dt) {
+      if (!started || finished || paused)
+        return;
+      const d = Math.min(dt || 0, 0.1);
+      time += d;
+      let yaw = 0;
+      let pitch = 0;
+      if (time < PAN_END) {
+        const e = smoother(time / PAN_END);
+        yaw = STRIKE_YAW * e;
+        pitch = STRIKE_PITCH * e;
+      } else if (time < CARRY_START) {
+        yaw = STRIKE_YAW;
+        pitch = STRIKE_PITCH;
+      } else if (time < CARRY_END) {
+        const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
+        yaw = STRIKE_YAW * (1 - e);
+        pitch = STRIKE_PITCH * (1 - e);
+      } else {
+        yaw = 0;
+        pitch = 0;
+      }
+      if (time > APPROACH_END && time < SCRAPE2_END) {
+        const k = 28e-4 * Math.sin(time * 54) * Math.sin(time * 37 + 1.1);
+        yaw += k;
+        pitch += k * 0.6;
+      }
+      setView2(yaw, pitch);
+      camera2.updateMatrixWorld(true);
+      if (time < PAN_END) {
+        const e = smooth((time - 0.05) / (PAN_END - 0.15));
+        left.position.lerpVectors(offPos, readyPos, e);
+      } else if (time < APPROACH_END) {
+        const e = smooth((time - PAN_END) / (APPROACH_END - PAN_END));
+        left.position.lerpVectors(readyPos, strikePos, e);
+      } else if (time < SCRAPE1_END) {
+        const e = smooth((time - APPROACH_END) / (SCRAPE1_END - APPROACH_END));
+        left.position.copy(strikePos).addScaledVector(tangentLocal, SCRAPE_DISTANCE * e);
+      } else if (time < SCRAPE2_END) {
+        const e = smooth((time - SCRAPE1_END) / (SCRAPE2_END - SCRAPE1_END));
+        left.position.copy(strikePos).addScaledVector(tangentLocal, SCRAPE_DISTANCE * (1 - e));
+        if (time > IGNITE_AT)
+          ignite();
+      } else if (time < CARRY_START) {
+        const e = smooth((time - SCRAPE2_END) / (CARRY_START - SCRAPE2_END));
+        left.position.copy(strikePos).addScaledVector(PULLBACK, e);
+      } else if (time < CARRY_END) {
+        const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
+        const t = scratch.copy(carryStartTip).lerp(lightTipLocal, e);
+        t.y += Math.sin(Math.PI * e) * 0.11;
+        t.x += Math.sin(Math.PI * e) * 0.03;
+        const rot = [
+          lerp2(STRIKE_ROT[0], LIGHT_ROT[0], e),
+          lerp2(STRIKE_ROT[1], LIGHT_ROT[1], e),
+          lerp2(STRIKE_ROT[2], LIGHT_ROT[2], e)
+        ];
+        solveLeftClean(t, rot, lerp2(STRIKE_SCALE, LIGHT_SCALE, e));
+      } else if (time < TRANSFER_END) {
+        solveLeftClean(lightTipLocal, LIGHT_ROT, LIGHT_SCALE);
+      } else if (time < DROP_END) {
+        const e = smooth((time - TRANSFER_END) / (DROP_END - TRANSFER_END));
+        left.position.copy(lightPos);
+        left.position.x -= 0.8 * e;
+        left.position.y -= 1.45 * e;
+        left.position.z += 0.08 * e;
+        left.rotation.set(
+          LIGHT_ROT[0] - 0.25 * e,
+          LIGHT_ROT[1],
+          LIGHT_ROT[2]
+        );
+      } else {
+        dropLeft();
+      }
+      left.updateMatrixWorld(true);
+      if (lit) {
+        const tip = tipLocal(scratch);
+        if (time < CARRY_END) {
+          flame2.setWickPosition(tip.x, tip.y, tip.z, FLAME_MATCH_SCALE);
+          handLight.position.copy(tip);
+          handLight.position.y += 0.04;
+          handLight.intensity = 2.4 + 0.6 * Math.sin(time * 9);
+          spot.intensity = 16 * smooth((time - IGNITE_AT) / 1.1);
+        } else if (time < TRANSFER_END) {
+          const e = smoother((time - CARRY_END) / (TRANSFER_END - CARRY_END));
+          const x = lerp2(tip.x, wickLocal.x, e);
+          const y = lerp2(tip.y, wickLocal.y, e);
+          const z = lerp2(tip.z, wickLocal.z, e);
+          const s = lerp2(FLAME_MATCH_SCALE, 1, e);
+          flame2.setWickPosition(x, y, z, s);
+          handLight.position.set(x, y + 0.08, z);
+          handLight.intensity = lerp2(3, 4.2, e);
+          spot.intensity = lerp2(16, 40, e);
+        } else {
+          flame2.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
+          handLight.position.copy(wickLocal);
+          handLight.position.y += 0.08;
+          handLight.intensity = 4.2;
+          spot.intensity = 40;
+        }
+        flare += (1 - flare) * (1 - Math.exp(-4.5 * d));
+      } else {
+        spot.intensity = 0;
+      }
+      if (time >= END)
+        finish();
+    }
+    return {
+      start,
+      update,
+      // Debug helpers used by the pose-tuning harness. Freezing the ceremony
+      // and jumping to an exact second makes screenshots repeatable even on a
+      // slow software renderer.
+      pause(v) {
+        paused = !!v;
+      },
+      seek(t) {
+        if (!started || finished)
+          return;
+        const wasPaused = paused;
+        paused = false;
+        const target = Math.max(0, Math.min(t, END));
+        if (target > IGNITE_AT)
+          ignite();
+        time = target;
+        update(0);
+        paused = wasPaused;
+      },
+      rightHand: right,
+      leftHand: left,
+      wickLocal,
+      handLight,
+      strikeWorld,
+      get started() {
+        return started;
+      },
+      get finished() {
+        return finished;
+      },
+      get lit() {
+        return lit;
+      },
+      get time() {
+        return time;
+      },
+      get flameBoost() {
+        return lit ? flare : 1;
+      },
+      get leftVisible() {
+        return !leftDropped && left.visible && !!left.parent;
+      }
+    };
+  }
+
   // js/main.js
   var state = {
     playing: false,
     gameOver: false,
     won: false,
+    // True while the opening ceremony owns the camera and the hands.
+    cinematic: false,
     // Secret free-fly inspection mode (toggled with V during play).
     spectator: false,
     spectatorSpeed: 12,
@@ -25152,6 +25609,7 @@
   var flame;
   var environment = null;
   var ground = null;
+  var intro = null;
   var _prevPos = new Vector3();
   var _velocity = new Vector3();
   var _axisX = new Vector3();
@@ -25211,7 +25669,7 @@
   }
   function loadWorld() {
     const loader = window.AsciiDiya && window.AsciiDiya.loader;
-    loadEnvironment(scene, {
+    const envPromise = loadEnvironment(scene, {
       renderer,
       onProgress: (p) => {
         if (!loader)
@@ -25224,7 +25682,9 @@
           );
         }
       }
-    }).then((env) => {
+    });
+    const handsPromise = loadHands();
+    Promise.all([envPromise, handsPromise]).then(([env, hands]) => {
       environment = env;
       console.info(
         "[world] " + env.stats.instances + " props from " + env.stats.variants + " models" + (env.stats.missing.length ? " (missing: " + env.stats.missing.join(", ") + ")" : "")
@@ -25233,6 +25693,23 @@
         window.__DIYO_DEBUG.environment = env;
       if (env.stats.variants === 0)
         showWorldWarning(env.stats.blocked);
+      if (hands) {
+        intro = createIntro({
+          camera,
+          flame,
+          spot: light,
+          hands,
+          environment: env,
+          setView,
+          onDone: onIntroDone
+        });
+        if (window.__DIYO_DEBUG)
+          window.__DIYO_DEBUG.intro = intro;
+      }
+      if (!intro) {
+        flame.setVisible(true);
+        light.intensity = 40;
+      }
       requestAnimationFrame(() => {
         renderer.render(scene, camera);
         requestAnimationFrame(() => {
@@ -25242,6 +25719,8 @@
       });
     }).catch((err) => {
       console.error("[world] environment failed to load:", err);
+      flame.setVisible(true);
+      light.intensity = 40;
       if (loader)
         loader.ready();
     });
@@ -25254,11 +25733,30 @@
     banner.innerHTML = blocked ? "The forest models cannot be loaded from a <code>file://</code> page.<br>Run <code>node server.js</code> in the project folder, then open <code>http://localhost:3000</code>." : "The forest models failed to load. Check the browser console, then reload.";
     UI.overlay.style.display = "flex";
   }
-  function startGame() {
-    state.playing = true;
-    UI.overlay.style.display = "none";
-    UI.instructions.style.display = "block";
+  function setView(yaw, pitch) {
+    state.yaw = yaw;
+    state.pitch = pitch;
+    camera.rotation.set(pitch, yaw, 0);
+  }
+  function onIntroDone() {
+    state.cinematic = false;
     UI.crosshair.style.display = "block";
+    if (document.pointerLockElement === document.body) {
+      UI.instructions.style.display = "none";
+    } else {
+      UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
+      UI.instructions.style.display = "block";
+    }
+  }
+  function startGame() {
+    if (state.playing)
+      return;
+    state.playing = true;
+    UI.overlay.classList.add("is-leaving");
+    window.setTimeout(() => {
+      UI.overlay.style.display = "none";
+      UI.overlay.classList.remove("menu", "is-leaving");
+    }, 500);
     try {
       const lock = document.body.requestPointerLock();
       if (lock && typeof lock.catch === "function") {
@@ -25267,6 +25765,15 @@
       }
     } catch (e) {
       console.warn("Pointer lock unavailable:", e);
+    }
+    if (intro) {
+      state.cinematic = true;
+      UI.instructions.style.display = "none";
+      UI.crosshair.style.display = "none";
+      intro.start();
+    } else {
+      UI.instructions.style.display = "block";
+      UI.crosshair.style.display = "block";
     }
   }
   function buildGround() {
@@ -25316,6 +25823,8 @@
     scene.add(house);
   }
   function onKeyDown(e) {
+    if (state.cinematic)
+      return;
     if (e.code === "KeyV" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && state.playing && !state.gameOver && !state.won) {
       toggleSpectator();
       return;
@@ -25392,7 +25901,7 @@
     document.body.classList.remove("is-spectator");
   }
   function onMouseMove(e) {
-    if (!state.playing || state.gameOver || state.won || document.pointerLockElement !== document.body) {
+    if (!state.playing || state.gameOver || state.won || state.cinematic || document.pointerLockElement !== document.body) {
       return;
     }
     state.yaw -= e.movementX * state.mouseSensitivity;
@@ -25410,6 +25919,11 @@
   }
   function onPointerLockChange() {
     const locked = document.pointerLockElement === document.body;
+    if (state.cinematic) {
+      UI.crosshair.style.display = "none";
+      UI.instructions.style.display = "none";
+      return;
+    }
     if (locked) {
       UI.instructions.style.display = "none";
       UI.crosshair.style.display = "block";
@@ -25424,7 +25938,7 @@
     }
   }
   function updatePlayer(dt) {
-    if (!state.playing || state.gameOver || state.won) {
+    if (!state.playing || state.gameOver || state.won || state.cinematic) {
       return;
     }
     const speed = state.moveSpeed * dt;
@@ -25466,7 +25980,7 @@
     }
   }
   function updateSpectator(dt) {
-    if (!state.spectator || !state.playing)
+    if (!state.spectator || !state.playing || state.cinematic)
       return;
     const speed = state.spectatorSpeed * dt;
     const move = new Vector3();
@@ -25535,6 +26049,8 @@
         updatePlayer(state.fixedDt);
       state.accumulatedTime -= state.fixedDt;
     }
+    if (intro && state.cinematic)
+      intro.update(rawDelta);
     _velocity.copy(camera.position).sub(_prevPos).divideScalar(Math.max(delta, 1e-4));
     _axisX.set(1, 0, 0).applyQuaternion(camera.quaternion);
     _axisY.set(0, 1, 0).applyQuaternion(camera.quaternion);
@@ -25547,6 +26063,9 @@
       pitchDelta: state.pitch - _prevPitch,
       speed: _velocity.length()
     });
+    if (intro && state.cinematic) {
+      flame.uniforms.uIntensity.value *= intro.flameBoost;
+    }
     _prevYaw = state.yaw;
     _prevPitch = state.pitch;
     renderer.render(scene, camera);

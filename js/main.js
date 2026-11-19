@@ -1,6 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
+import { loadHands, createIntro } from './intro.js';
 
 /* ------------------------------------------------------------------ */
 /*  Game state                                                        */
@@ -9,6 +10,9 @@ const state = {
   playing: false,
   gameOver: false,
   won: false,
+
+  // True while the opening ceremony owns the camera and the hands.
+  cinematic: false,
 
   // Secret free-fly inspection mode (toggled with V during play).
   spectator: false,
@@ -46,6 +50,7 @@ let scene, camera, renderer, clock;
 let light, house, flame;
 let environment = null;
 let ground = null;
+let intro = null;
 
 // Scratch vectors for per-frame flame motion (no allocations in the loop).
 const _prevPos = new THREE.Vector3();
@@ -152,12 +157,12 @@ function init() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Load the environment, then let the loader fade away                */
+/*  Load the environment + hands, then let the loader fade away        */
 /* ------------------------------------------------------------------ */
 function loadWorld() {
   const loader = window.AsciiDiya && window.AsciiDiya.loader;
 
-  loadEnvironment(scene, {
+  const envPromise = loadEnvironment(scene, {
     renderer,
     onProgress: (p) => {
       if (!loader) return;
@@ -169,8 +174,14 @@ function loadWorld() {
         );
       }
     }
-  })
-    .then((env) => {
+  });
+
+  // The hands are part of the opening ceremony, so the loader waits for both
+  // the forest and the two arm models before it lets the menu in.
+  const handsPromise = loadHands();
+
+  Promise.all([envPromise, handsPromise])
+    .then(([env, hands]) => {
       environment = env;
       console.info(
         '[world] ' + env.stats.instances + ' props from ' + env.stats.variants +
@@ -181,6 +192,26 @@ function loadWorld() {
       // An empty world is playable but pointless. Say why, rather than
       // leaving the player walking through a black void.
       if (env.stats.variants === 0) showWorldWarning(env.stats.blocked);
+
+      if (hands) {
+        intro = createIntro({
+          camera,
+          flame,
+          spot: light,
+          hands,
+          environment: env,
+          setView,
+          onDone: onIntroDone
+        });
+        if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.intro = intro;
+      }
+
+      // If the hand rig is unavailable the game still works: skip the
+      // ceremony and show the standalone flame in the bottom-right.
+      if (!intro) {
+        flame.setVisible(true);
+        light.intensity = 40;
+      }
 
       // Make sure at least one frame with the finished world has been drawn
       // before the loader starts fading.
@@ -193,6 +224,8 @@ function loadWorld() {
     })
     .catch((err) => {
       console.error('[world] environment failed to load:', err);
+      flame.setVisible(true);
+      light.intensity = 40;
       if (loader) loader.ready();
     });
 }
@@ -211,15 +244,41 @@ function showWorldWarning(blocked) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Camera control shared by the intro and the player                  */
+/* ------------------------------------------------------------------ */
+function setView(yaw, pitch) {
+  state.yaw = yaw;
+  state.pitch = pitch;
+  camera.rotation.set(pitch, yaw, 0);
+}
+
+function onIntroDone() {
+  state.cinematic = false;
+  UI.crosshair.style.display = 'block';
+  if (document.pointerLockElement === document.body) {
+    UI.instructions.style.display = 'none';
+  } else {
+    UI.instructions.textContent =
+      'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
+    UI.instructions.style.display = 'block';
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Start the game — update UI FIRST, then request pointer lock.      */
 /*  If pointer lock throws (file://, iframe, unsupported), the game   */
 /*  still starts instead of the click appearing to do nothing.        */
 /* ------------------------------------------------------------------ */
 function startGame() {
+  if (state.playing) return;
   state.playing = true;
-  UI.overlay.style.display = 'none';
-  UI.instructions.style.display = 'block';
-  UI.crosshair.style.display = 'block';
+
+  // Let the menu dissolve instead of vanishing between frames.
+  UI.overlay.classList.add('is-leaving');
+  window.setTimeout(() => {
+    UI.overlay.style.display = 'none';
+    UI.overlay.classList.remove('menu', 'is-leaving');
+  }, 500);
 
   try {
     const lock = document.body.requestPointerLock();
@@ -228,6 +287,18 @@ function startGame() {
     }
   } catch (e) {
     console.warn('Pointer lock unavailable:', e);
+  }
+
+  if (intro) {
+    // The ceremony plays before the player gets control. Keep the HUD out of
+    // the shot until it hands over.
+    state.cinematic = true;
+    UI.instructions.style.display = 'none';
+    UI.crosshair.style.display = 'none';
+    intro.start();
+  } else {
+    UI.instructions.style.display = 'block';
+    UI.crosshair.style.display = 'block';
   }
 }
 
@@ -299,6 +370,9 @@ function buildHouse() {
 /*  Input                                                             */
 /* ------------------------------------------------------------------ */
 function onKeyDown(e) {
+  // The opening ceremony owns the camera; don't queue movement or toggles.
+  if (state.cinematic) return;
+
   // Hidden spectator toggle. Deliberately absent from the normal HUD.
   if (
     e.code === 'KeyV' &&
@@ -411,6 +485,7 @@ function onMouseMove(e) {
     !state.playing ||
     state.gameOver ||
     state.won ||
+    state.cinematic ||
     document.pointerLockElement !== document.body
   ) {
     return;
@@ -440,6 +515,14 @@ function onClick() {
 function onPointerLockChange() {
   const locked = document.pointerLockElement === document.body;
 
+  // During the ceremony neither the crosshair nor the instructions belong on
+  // screen, even if pointer lock is acquired straight from the start click.
+  if (state.cinematic) {
+    UI.crosshair.style.display = 'none';
+    UI.instructions.style.display = 'none';
+    return;
+  }
+
   if (locked) {
     UI.instructions.style.display = 'none';
     UI.crosshair.style.display = 'block';
@@ -460,7 +543,7 @@ function onPointerLockChange() {
 /*  Gameplay update (fixed timestep)                                  */
 /* ------------------------------------------------------------------ */
 function updatePlayer(dt) {
-  if (!state.playing || state.gameOver || state.won) {
+  if (!state.playing || state.gameOver || state.won || state.cinematic) {
     return;
   }
 
@@ -514,7 +597,7 @@ function checkInteractions() {
 /*  Spectator flight (fixed timestep)                                 */
 /* ------------------------------------------------------------------ */
 function updateSpectator(dt) {
-  if (!state.spectator || !state.playing) return;
+  if (!state.spectator || !state.playing || state.cinematic) return;
 
   const speed = state.spectatorSpeed * dt;
   const move = new THREE.Vector3();
@@ -598,6 +681,10 @@ function animate() {
     state.accumulatedTime -= state.fixedDt;
   }
 
+  // Opening ceremony: it drives the camera, both hands, the flame and both
+  // lights. It runs before the flame's lean update so shared state is fresh.
+  if (intro && state.cinematic) intro.update(rawDelta);
+
   // Turn movement and looking into camera-local velocity so the flame can
   // lean against them. This runs even before start / after winning: the flame
   // is part of the view at all times, not a gameplay object.
@@ -613,6 +700,12 @@ function animate() {
     pitchDelta: state.pitch - _prevPitch,
     speed: _velocity.length()
   });
+
+  // The match's initial catch is applied after flame.update, otherwise the
+  // flame's own flicker would overwrite it every frame.
+  if (intro && state.cinematic) {
+    flame.uniforms.uIntensity.value *= intro.flameBoost;
+  }
 
   // Remember the look angles for the next frame: mousemove fires between
   // frames, so this is the only place the change can be measured.

@@ -292,6 +292,17 @@ export function createFlame(camera) {
     mesh.visible = v;
   }
 
+  /**
+   * Place the flame so its wick (volume y = 0) sits exactly at a point in
+   * camera space. The shader's volume origin is 26% up the quad, which is
+   * why the mesh itself is offset upward by that fraction of its height.
+   */
+  function setWickPosition(x, y, z, scale = 1) {
+    const s = scale > 0 ? scale : 1;
+    mesh.scale.setScalar(s);
+    mesh.position.set(x, y + 0.0864 * s, z);
+  }
+
   function dispose() {
     camera.remove(mesh);
     geometry.dispose();
@@ -303,6 +314,7 @@ export function createFlame(camera) {
     uniforms,
     update,
     setVisible,
+    setWickPosition,
     dispose,
     get flicker() {
       return flicker;
