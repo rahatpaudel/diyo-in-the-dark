@@ -118,17 +118,22 @@ const FRAG = `
   }
 
   void main() {
-    float t = uTime * (1.0 + uSpeed * 0.18) + uSeed;
+    float t = uTime * (1.0 + uSpeed * 0.06) + uSeed;
 
     // Padded volume coordinates: x in [-0.45, 0.45], y in [-0.46, 1.29].
     float x = (vUv.x - 0.5) * 0.9;
     float y = (vUv.y - 0.5) * 1.75 + 0.42;
-    float H = clamp(y, 0.0, 1.0);
+    float H0 = clamp(y, 0.0, 1.0);
 
-    // Spine: a slow living bend plus the player's motion lean.
-    float spine = uLean.x * H * H * 1.5 + uDepth * 0.045 * H;
-    spine += sin(t * 1.15 + H * 1.6) * 0.026 * H;
-    spine += sin(t * 2.45 - H * 2.6 + 1.7) * 0.010 * H;
+    // Pitch shears the upper flame; the base stays planted on the wick.
+    float yv = y - uLean.y * H0 * H0 * 0.9;
+    float H = clamp(yv, 0.0, 1.0);
+
+    // Spine: a slow living bend plus the player's motion lean. The lean is
+    // amplified up the flame so rotations tilt the tip, not the base.
+    float spine = uLean.x * H * H * 1.9 + uDepth * 0.030 * H;
+    spine += sin(t * 1.15 + H * 1.6) * 0.022 * H;
+    spine += sin(t * 2.45 - H * 2.6 + 1.7) * 0.008 * H;
 
     // Teardrop half-width: pinched at the wick, fullest just above it, then
     // closing in a rounded point instead of a needle.
@@ -170,8 +175,8 @@ const FRAG = `
 
       float env = 1.0 - smoothstep(0.36, 1.05, rad);
       float body = env * (0.32 + 1.08 * n);
-      body *= smoothstep(0.0, 0.12, y);
-      body *= 1.0 - smoothstep(0.80, 1.08, y);
+      body *= smoothstep(0.0, 0.12, yv);
+      body *= 1.0 - smoothstep(0.80, 1.08, yv);
       body = clamp(body, 0.0, 1.0);
 
       // Hottest just above the wick; the tip still glows dull orange.
@@ -182,7 +187,7 @@ const FRAG = `
 
       vec3 emit = blackbody(heat);
       // Blue root where the wick feeds the flame.
-      float blue = (1.0 - smoothstep(0.0, 0.11, y))
+      float blue = (1.0 - smoothstep(0.0, 0.11, yv))
                  * (1.0 - smoothstep(0.0, 0.60, rad));
       emit = mix(emit, vec3(0.08, 0.24, 1.0) * 1.4, blue * 0.60);
 
@@ -249,10 +254,10 @@ export function createFlame(camera) {
     lastMotion.pitchDelta = m.pitchDelta || 0;
     lastMotion.speed = m.speed || 0;
 
-    // A lamp flame sways; it does not whip around.
+    // Turn and pitch tilt the flame clearly; walking only nudges it.
     target.set(
-      clamp(-lastMotion.localX * 0.012 + lastMotion.yawDelta * 0.09, -0.06, 0.06),
-      clamp(-lastMotion.localY * 0.012 - lastMotion.pitchDelta * 0.07, -0.05, 0.05)
+      clamp(-lastMotion.localX * 0.006 + lastMotion.yawDelta * 0.35, -0.09, 0.09),
+      clamp(-lastMotion.localY * 0.006 - lastMotion.pitchDelta * 0.22, -0.075, 0.075)
     );
 
     // Heavily damped spring with substeps, stable across long frames.
@@ -276,11 +281,11 @@ export function createFlame(camera) {
 
     // Gentle swell rather than a strobe.
     flicker =
-      0.97 +
-      0.016 * Math.sin(time * 2.7) +
-      0.010 * Math.sin(time * 5.9 + 1.1) +
-      0.008 * Math.sin(time * 0.9 + 0.4);
-    uniforms.uIntensity.value = flicker * (0.98 + uniforms.uSpeed.value * 0.02);
+      0.98 +
+      0.011 * Math.sin(time * 2.7) +
+      0.006 * Math.sin(time * 5.9 + 1.1) +
+      0.004 * Math.sin(time * 0.9 + 0.4);
+    uniforms.uIntensity.value = flicker * 0.995;
   }
 
   function setVisible(v) {
