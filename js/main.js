@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import { loadEnvironment } from './environment.js';
+import { createFlame } from './flame.js';
 
 /* ------------------------------------------------------------------ */
 /*  Game state                                                        */
@@ -42,9 +43,21 @@ const UI = {
 /*  Three.js scene objects                                            */
 /* ------------------------------------------------------------------ */
 let scene, camera, renderer, clock;
-let light, house;
+let light, house, flame;
 let environment = null;
 let ground = null;
+
+// Scratch vectors for per-frame flame motion (no allocations in the loop).
+const _prevPos = new THREE.Vector3();
+const _velocity = new THREE.Vector3();
+const _axisX = new THREE.Vector3();
+const _axisY = new THREE.Vector3();
+const _axisZ = new THREE.Vector3();
+
+// Mouse look writes to state.yaw/pitch between frames, so the look delta has
+// to be measured from the previous *frame* rather than the start of this one.
+let _prevYaw = 0;
+let _prevPitch = 0;
 
 // Saved when entering spectator mode so exiting puts everything back.
 let spectatorSaved = null;
@@ -103,6 +116,10 @@ function init() {
   light.target.position.set(0.3, -0.7, -6);
   camera.add(light);
   camera.add(light.target);
+
+  // The visible flame in the player's hand. Stays glued to the bottom-right
+  // of the view; the real diya/hand model can replace it later.
+  flame = createFlame(camera);
 
   // World
   buildGround();
@@ -477,9 +494,8 @@ function updatePlayer(dt) {
     }
   }
 
-  // Diyo flame flicker (purely visual now)
-  const flicker = 0.9 + Math.random() * 0.2;
-  light.intensity = 40 * flicker;
+  // The spotlight and the visible flame share one breathing rhythm.
+  light.intensity = 40 * flame.flicker;
 
   checkInteractions();
 }
@@ -569,7 +585,10 @@ function onResize() {
 
 function animate() {
   requestAnimationFrame(animate);
-  const delta = Math.min(clock.getDelta(), 0.1);
+  const rawDelta = clock.getDelta();
+  const delta = Math.min(rawDelta, 0.1);
+
+  _prevPos.copy(camera.position);
 
   // Fixed timestep for consistent gameplay regardless of frame rate
   state.accumulatedTime += delta;
@@ -578,6 +597,27 @@ function animate() {
     else updatePlayer(state.fixedDt);
     state.accumulatedTime -= state.fixedDt;
   }
+
+  // Turn movement and looking into camera-local velocity so the flame can
+  // lean against them. This runs even before start / after winning: the flame
+  // is part of the view at all times, not a gameplay object.
+  _velocity.copy(camera.position).sub(_prevPos).divideScalar(Math.max(delta, 1e-4));
+  _axisX.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  _axisY.set(0, 1, 0).applyQuaternion(camera.quaternion);
+  _axisZ.set(0, 0, 1).applyQuaternion(camera.quaternion);
+  flame.update(rawDelta, {
+    localX: _velocity.dot(_axisX),
+    localY: _velocity.dot(_axisY),
+    localZ: _velocity.dot(_axisZ),
+    yawDelta: state.yaw - _prevYaw,
+    pitchDelta: state.pitch - _prevPitch,
+    speed: _velocity.length()
+  });
+
+  // Remember the look angles for the next frame: mousemove fires between
+  // frames, so this is the only place the change can be measured.
+  _prevYaw = state.yaw;
+  _prevPitch = state.pitch;
 
   renderer.render(scene, camera);
 }
@@ -589,6 +629,7 @@ try {
   window.__DIYO_DEBUG.camera = camera;
   window.__DIYO_DEBUG.scene = scene;
   window.__DIYO_DEBUG.renderer = renderer;
+  window.__DIYO_DEBUG.flame = flame;
   window.__DIYO_DEBUG.toggleSpectator = toggleSpectator;
   window.__DIYO_READY = true;
 } catch (err) {
