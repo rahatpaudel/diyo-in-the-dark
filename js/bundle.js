@@ -25459,7 +25459,7 @@
   function checkInteractions() {
     const dHouse = camera.position.distanceTo(house.position);
     if (dHouse < 5) {
-      UI.message.textContent = "Press E to place Diyo in the Rangoli";
+      UI.message.textContent = "Press E to leave your Diyo at the house";
       UI.message.style.display = "block";
     } else {
       UI.message.style.display = "none";
@@ -25502,7 +25502,7 @@
     }
     UI.overlay.innerHTML = `
     <h1 style="color:#ffaa00">HOUSE LIGHTED</h1>
-    <p>You carried the Diyo through the dark and lit the Rangoli.<br>The house glows warm against the forest.</p>
+    <p>You carried the Diyo through the dark and lit the house.<br>It glows warm against the forest.</p>
     <button onclick="location.reload()">Play Again</button>
   `;
     UI.overlay.style.display = "flex";
