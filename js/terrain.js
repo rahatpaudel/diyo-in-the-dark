@@ -17,11 +17,11 @@ const HALF = SIZE / 2;
 const MIN_X = -36;
 const MAX_X = 36;
 const MIN_Z = -152;
-const MAX_Z = 6;
+const MAX_Z = 42;
 const WIDTH = MAX_X - MIN_X;
 const DEPTH = MAX_Z - MIN_Z;
 const SEG_X = 84;
-const SEG_Z = 190;
+const SEG_Z = 232;
 
 /* ------------------------------------------------------------------ */
 /*  Deterministic noise                                               */

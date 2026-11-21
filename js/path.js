@@ -350,6 +350,22 @@ for (const branch of PATH_BRANCHES) {
   }
 }
 
+// Forest behind the spawn. Turning around should show deep woods, not the
+// edge of the terrain.
+for (let gx = -34; gx <= 34; gx += 3.8) {
+  for (let gz = 2; gz <= 40; gz += 3.8) {
+    const r1 = hash(Math.round(gx * 10), Math.round(gz * 10), 211);
+    const r2 = hash(Math.round(gx * 10), Math.round(gz * 10), 307);
+    const r3 = hash(Math.round(gx * 10), Math.round(gz * 10), 401);
+    if (r1 < 0.16) continue;
+    const x = gx + (r2 - 0.5) * 3.2;
+    const z = gz + (r3 - 0.5) * 3.2;
+    if (Math.hypot(x, z) < 4.5) continue;
+    const v = PATH_TREES[Math.floor(r2 * PATH_TREES.length) % PATH_TREES.length];
+    addExtra(v.name, x, z, r3 * Math.PI * 2, 0.85 + r1 * 0.55);
+  }
+}
+
 // Decoy ends: a fallen log and a tight knot of trees, no collision needed.
 for (const branch of PATH_BRANCHES) {
   if (branch.kind !== 'decoy') continue;
