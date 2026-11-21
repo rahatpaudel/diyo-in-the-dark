@@ -49,8 +49,24 @@ const UI = {
 let scene, camera, renderer, clock;
 let light, house, flame;
 let environment = null;
+let colliders = [];
 let ground = null;
 let intro = null;
+
+// Player collision is a simple upright cylinder; trees are circles in XZ.
+const PLAYER_RADIUS = 0.3;
+
+// Resting-pose reference for the right hand, plus the smoothed gait/sway
+// offsets applied on top of it once the ceremony has handed over.
+const _handBasePos = new THREE.Vector3();
+const _handBaseRot = new THREE.Euler();
+const _handWick = new THREE.Vector3();
+let handBaseReady = false;
+let handBobPhase = 0;
+let handIdleTime = 0;
+let handSwayX = 0;
+let handSwayYaw = 0;
+let handSwayPitch = 0;
 
 // Scratch vectors for per-frame flame motion (no allocations in the loop).
 const _prevPos = new THREE.Vector3();
@@ -74,7 +90,9 @@ let spectatorLights = null;
 function init() {
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x030306);
+  // Cleared manually in renderFrame so the hand HUD pass cannot wipe the
+  // world; the clear colour matches the old background.
+  scene.background = null;
   scene.fog = new THREE.FogExp2(0x030306, 0.045);
 
   // Camera
@@ -99,6 +117,9 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // The frame is cleared manually (world pass + HUD pass), so match the
+  // scene's background colour here.
+  renderer.setClearColor(0x030306, 1);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -125,6 +146,8 @@ function init() {
   // The visible flame in the player's hand. Stays glued to the bottom-right
   // of the view; the real diya/hand model can replace it later.
   flame = createFlame(camera);
+  // HUD layer: drawn after the world with a cleared depth buffer.
+  flame.mesh.layers.set(1);
 
   // World
   buildGround();
@@ -183,11 +206,13 @@ function loadWorld() {
   Promise.all([envPromise, handsPromise])
     .then(([env, hands]) => {
       environment = env;
+      colliders = env.colliders || [];
       console.info(
         '[world] ' + env.stats.instances + ' props from ' + env.stats.variants +
           ' models' + (env.stats.missing.length ? ' (missing: ' + env.stats.missing.join(', ') + ')' : '')
       );
       if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.environment = env;
+      if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.colliders = colliders;
 
       // An empty world is playable but pointless. Say why, rather than
       // leaving the player walking through a black void.
@@ -204,6 +229,14 @@ function loadWorld() {
           onDone: onIntroDone
         });
         if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.intro = intro;
+
+        // Hands are HUD elements: render them on the overlay layer so world
+        // geometry can never occlude them. Lights keep layer 0 as well.
+        intro.leftHand.traverse((o) => o.layers.set(1));
+        intro.rightHand.traverse((o) => o.layers.set(1));
+        scene.traverse((o) => {
+          if (o.isLight) o.layers.enable(1);
+        });
       }
 
       // If the hand rig is unavailable the game still works: skip the
@@ -216,7 +249,7 @@ function loadWorld() {
       // Make sure at least one frame with the finished world has been drawn
       // before the loader starts fading.
       requestAnimationFrame(() => {
-        renderer.render(scene, camera);
+        renderFrame();
         requestAnimationFrame(() => {
           if (loader) loader.ready();
         });
@@ -261,6 +294,19 @@ function onIntroDone() {
     UI.instructions.textContent =
       'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
     UI.instructions.style.display = 'block';
+  }
+
+  // The ceremony left the hand in its resting pose; that becomes the base for
+  // the subtle walk/turn sway below.
+  if (intro) {
+    _handBasePos.copy(intro.rightHand.position);
+    _handBaseRot.copy(intro.rightHand.rotation);
+    handBaseReady = true;
+    handBobPhase = 0;
+    handIdleTime = 0;
+    handSwayX = 0;
+    handSwayYaw = 0;
+    handSwayPitch = 0;
   }
 }
 
@@ -542,6 +588,29 @@ function onPointerLockChange() {
 /* ------------------------------------------------------------------ */
 /*  Gameplay update (fixed timestep)                                  */
 /* ------------------------------------------------------------------ */
+function resolveCollisions() {
+  if (!colliders.length) return;
+  // Two passes settle the player cleanly between neighbouring trunks.
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < colliders.length; i++) {
+      const c = colliders[i];
+      const dx = camera.position.x - c.x;
+      const dz = camera.position.z - c.z;
+      const min = c.r + PLAYER_RADIUS;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= min * min) continue;
+      if (d2 < 1e-8) {
+        camera.position.x += min;
+        continue;
+      }
+      const d = Math.sqrt(d2);
+      const push = (min - d) / d;
+      camera.position.x += dx * push;
+      camera.position.z += dz * push;
+    }
+  }
+}
+
 function updatePlayer(dt) {
   if (!state.playing || state.gameOver || state.won || state.cinematic) {
     return;
@@ -566,6 +635,7 @@ function updatePlayer(dt) {
   if (move.lengthSq() > 0) {
     move.normalize();
     camera.position.addScaledVector(move, speed);
+    resolveCollisions();
   }
 
   // Consume interact key
@@ -666,6 +736,88 @@ function onResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+/* ------------------------------------------------------------------ */
+/*  Right-hand HUD motion                                              */
+/* ------------------------------------------------------------------ */
+function updateHandBob(dt, motion) {
+  if (!handBaseReady || !intro) return;
+  const hand = intro.rightHand;
+  const step = Math.min(dt || 0, 0.1);
+  handIdleTime += step;
+
+  const planar = Math.hypot(motion.localX || 0, motion.localZ || 0);
+  const speed = Math.min(1, planar / Math.max(state.moveSpeed, 1e-3));
+  const gait = speed * speed;
+
+  // Two-step vertical cadence with a slower side-to-side sway.
+  handBobPhase += step * (6.0 + 6.0 * speed);
+  const bobY =
+    Math.sin(handBobPhase * 1.15) * 0.0035 * gait +
+    Math.sin(handIdleTime * 1.25) * 0.00045;
+  const bobX =
+    Math.cos(handBobPhase * 0.62) * 0.0022 * gait +
+    Math.sin(handIdleTime * 0.9 + 0.6) * 0.0003;
+  const bobRoll = Math.sin(handBobPhase * 0.9) * 0.004 * gait;
+
+  // The hand lags behind fast camera turns, then eases back when the turn
+  // stops. Rates are per second so the feel is frame-rate independent.
+  const inv = 1 / Math.max(step, 1e-3);
+  const yawRate = (motion.yawDelta || 0) * inv;
+  const pitchRate = (motion.pitchDelta || 0) * inv;
+  const targetYaw = Math.max(-0.05, Math.min(0.05, -yawRate * 0.02));
+  const targetPitch = Math.max(-0.035, Math.min(0.035, -pitchRate * 0.012));
+  const targetX = Math.max(-0.008, Math.min(0.008, -yawRate * 0.0025));
+  const ease = 1 - Math.exp(-12 * step);
+  handSwayYaw += (targetYaw - handSwayYaw) * ease;
+  handSwayPitch += (targetPitch - handSwayPitch) * ease;
+  handSwayX += (targetX - handSwayX) * ease;
+
+  hand.position.set(
+    _handBasePos.x + bobX + handSwayX,
+    _handBasePos.y + bobY,
+    _handBasePos.z
+  );
+  hand.rotation.set(
+    _handBaseRot.x + handSwayPitch + bobRoll * 0.3,
+    _handBaseRot.y + handSwayYaw,
+    _handBaseRot.z + bobRoll
+  );
+  camera.updateMatrixWorld(true);
+
+  // The flame is anchored to the wick, so it has to follow the sway.
+  const wick = hand.getObjectByName('diya_wick');
+  if (!wick) return;
+  wick.getWorldPosition(_handWick);
+  camera.worldToLocal(_handWick);
+  intro.wickLocal.copy(_handWick);
+  flame.setWickPosition(
+    _handWick.x,
+    _handWick.y,
+    _handWick.z,
+    flame.mesh.scale.x
+  );
+  intro.handLight.position.set(_handWick.x, _handWick.y + 0.08, _handWick.z);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Render — world first, then the hand HUD over a cleared depth buffer */
+/* ------------------------------------------------------------------ */
+function renderFrame() {
+  renderer.autoClear = false;
+  renderer.clear();
+
+  camera.layers.set(0);
+  renderer.render(scene, camera);
+
+  // The hands (and their flame) must never disappear inside a tree or wall.
+  renderer.shadowMap.autoUpdate = false;
+  renderer.clearDepth();
+  camera.layers.set(1);
+  renderer.render(scene, camera);
+  renderer.shadowMap.autoUpdate = true;
+  camera.layers.set(0);
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const rawDelta = clock.getDelta();
@@ -692,12 +844,17 @@ function animate() {
   _axisX.set(1, 0, 0).applyQuaternion(camera.quaternion);
   _axisY.set(0, 1, 0).applyQuaternion(camera.quaternion);
   _axisZ.set(0, 0, 1).applyQuaternion(camera.quaternion);
+  const localX = _velocity.dot(_axisX);
+  const localY = _velocity.dot(_axisY);
+  const localZ = _velocity.dot(_axisZ);
+  const yawDelta = state.yaw - _prevYaw;
+  const pitchDelta = state.pitch - _prevPitch;
   flame.update(rawDelta, {
-    localX: _velocity.dot(_axisX),
-    localY: _velocity.dot(_axisY),
-    localZ: _velocity.dot(_axisZ),
-    yawDelta: state.yaw - _prevYaw,
-    pitchDelta: state.pitch - _prevPitch,
+    localX,
+    localY,
+    localZ,
+    yawDelta,
+    pitchDelta,
     speed: _velocity.length()
   });
 
@@ -707,12 +864,17 @@ function animate() {
     flame.uniforms.uIntensity.value *= intro.flameBoost;
   }
 
+  // Subtle sway/bob on the resting hand, and the flame follows its wick.
+  if (handBaseReady && !state.cinematic) {
+    updateHandBob(rawDelta, { localX, localZ, yawDelta, pitchDelta });
+  }
+
   // Remember the look angles for the next frame: mousemove fires between
   // frames, so this is the only place the change can be measured.
   _prevYaw = state.yaw;
   _prevPitch = state.pitch;
 
-  renderer.render(scene, camera);
+  renderFrame();
 }
 
 try {

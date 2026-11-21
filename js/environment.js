@@ -258,6 +258,35 @@ function sectorOf(x, z) {
 }
 
 /**
+ * Collision radius for a prop. Trees use a trunk-sized circle derived from
+ * their footprint because the low-poly canopies flare all the way to the
+ * ground; rocks use their actual low slice; pebbles are stepped over.
+ */
+function collisionRadius(geometry, kind) {
+  if (kind === 'pebble') return 0;
+  geometry.computeBoundingBox();
+  const bb = geometry.boundingBox;
+
+  if (kind === 'tree') {
+    const footprint = Math.min(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+    return Math.min(0.5, Math.max(0.3, footprint * 0.1));
+  }
+
+  const pos = geometry.attributes.position;
+  const height = bb.max.y - bb.min.y;
+  const cutoff = bb.min.y + height * 0.45;
+  let r2 = 0;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > cutoff) continue;
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const d = x * x + z * z;
+    if (d > r2) r2 = d;
+  }
+  return Math.max(0.2, Math.sqrt(r2) * 0.95);
+}
+
+/**
  * @param {THREE.Scene} scene
  * @param {object} options
  * @param {THREE.WebGLRenderer} [options.renderer] used for anisotropy
@@ -331,6 +360,7 @@ function build(scene, loaded, options) {
   const dummy = new THREE.Object3D();
   const stats = { variants: 0, instances: 0, missing: [], blocked: IS_FILE_PROTOCOL };
   const meshes = [];
+  const colliders = [];
 
   for (const name of Object.keys(FOREST)) {
     const list = FOREST[name];
@@ -346,6 +376,7 @@ function build(scene, loaded, options) {
       continue;
     }
     stats.variants++;
+    const solidRadius = collisionRadius(prepared.geometry, kind);
 
     if (!sharedMaterial) {
       const src = prepared.material;
@@ -388,6 +419,17 @@ function build(scene, loaded, options) {
         dummy.scale.setScalar(scale);
         dummy.updateMatrix();
         inst.setMatrixAt(i, dummy.matrix);
+        if (solidRadius > 0) {
+          // Cap wide rock bases and low canopies so they cannot swallow the
+          // player's spawn point or build invisible walls across the forest.
+          const cap = kind === 'rock' ? 1.5 : 0.8;
+          colliders.push({
+            x,
+            z,
+            r: Math.min(solidRadius * scale, cap),
+            name
+          });
+        }
 
         // Break up the repetition with a faint brightness jitter.
         const h = Math.abs(Math.sin(i * 12.9898 + x * 78.233 + z * 37.719) * 43758.5453) % 1;
@@ -409,5 +451,5 @@ function build(scene, loaded, options) {
   }
 
   scene.add(group);
-  return { group, meshes, material: sharedMaterial, stats };
+  return { group, meshes, material: sharedMaterial, stats, colliders };
 }

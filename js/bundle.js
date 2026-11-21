@@ -24773,6 +24773,30 @@
     const a = Math.atan2(z, x) + Math.PI;
     return Math.min(SECTORS - 1, a / (Math.PI * 2) * SECTORS | 0);
   }
+  function collisionRadius(geometry, kind) {
+    if (kind === "pebble")
+      return 0;
+    geometry.computeBoundingBox();
+    const bb = geometry.boundingBox;
+    if (kind === "tree") {
+      const footprint = Math.min(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+      return Math.min(0.5, Math.max(0.3, footprint * 0.1));
+    }
+    const pos = geometry.attributes.position;
+    const height = bb.max.y - bb.min.y;
+    const cutoff = bb.min.y + height * 0.45;
+    let r2 = 0;
+    for (let i = 0; i < pos.count; i++) {
+      if (pos.getY(i) > cutoff)
+        continue;
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const d = x * x + z * z;
+      if (d > r2)
+        r2 = d;
+    }
+    return Math.max(0.2, Math.sqrt(r2) * 0.95);
+  }
   function loadEnvironment(scene2, options = {}) {
     const loader = new GLTFLoader();
     const names = Object.keys(FOREST);
@@ -24828,6 +24852,7 @@
     const dummy = new Object3D();
     const stats = { variants: 0, instances: 0, missing: [], blocked: IS_FILE_PROTOCOL };
     const meshes = [];
+    const colliders2 = [];
     for (const name of Object.keys(FOREST)) {
       const list = FOREST[name];
       const gltf = loaded[name];
@@ -24842,6 +24867,7 @@
         continue;
       }
       stats.variants++;
+      const solidRadius = collisionRadius(prepared.geometry, kind);
       if (!sharedMaterial) {
         const src = prepared.material;
         const map = src && src.map ? src.map : null;
@@ -24878,6 +24904,15 @@
           dummy.scale.setScalar(scale);
           dummy.updateMatrix();
           inst.setMatrixAt(i, dummy.matrix);
+          if (solidRadius > 0) {
+            const cap = kind === "rock" ? 1.5 : 0.8;
+            colliders2.push({
+              x,
+              z,
+              r: Math.min(solidRadius * scale, cap),
+              name
+            });
+          }
           const h = Math.abs(Math.sin(i * 12.9898 + x * 78.233 + z * 37.719) * 43758.5453) % 1;
           const tint = 0.86 + h * 0.22;
           inst.setColorAt(i, new Color(tint, tint, tint));
@@ -24895,7 +24930,7 @@
         m.computeBoundingSphere();
     }
     scene2.add(group);
-    return { group, meshes, material: sharedMaterial, stats };
+    return { group, meshes, material: sharedMaterial, stats, colliders: colliders2 };
   }
 
   // js/flame.js
@@ -25976,8 +26011,19 @@
   var house;
   var flame;
   var environment = null;
+  var colliders = [];
   var ground = null;
   var intro = null;
+  var PLAYER_RADIUS = 0.3;
+  var _handBasePos = new Vector3();
+  var _handBaseRot = new Euler();
+  var _handWick = new Vector3();
+  var handBaseReady = false;
+  var handBobPhase = 0;
+  var handIdleTime = 0;
+  var handSwayX = 0;
+  var handSwayYaw = 0;
+  var handSwayPitch = 0;
   var _prevPos = new Vector3();
   var _velocity = new Vector3();
   var _axisX = new Vector3();
@@ -25989,7 +26035,7 @@
   var spectatorLights = null;
   function init() {
     scene = new Scene();
-    scene.background = new Color(197382);
+    scene.background = null;
     scene.fog = new FogExp2(197382, 0.045);
     camera = new PerspectiveCamera(
       75,
@@ -26007,6 +26053,7 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = SRGBColorSpace;
+    renderer.setClearColor(197382, 1);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFSoftShadowMap;
     clock = new Clock();
@@ -26020,6 +26067,7 @@
     camera.add(light);
     camera.add(light.target);
     flame = createFlame(camera);
+    flame.mesh.layers.set(1);
     buildGround();
     buildHouse();
     window.addEventListener("keydown", onKeyDown);
@@ -26054,11 +26102,14 @@
     const handsPromise = loadHands();
     Promise.all([envPromise, handsPromise]).then(([env, hands]) => {
       environment = env;
+      colliders = env.colliders || [];
       console.info(
         "[world] " + env.stats.instances + " props from " + env.stats.variants + " models" + (env.stats.missing.length ? " (missing: " + env.stats.missing.join(", ") + ")" : "")
       );
       if (window.__DIYO_DEBUG)
         window.__DIYO_DEBUG.environment = env;
+      if (window.__DIYO_DEBUG)
+        window.__DIYO_DEBUG.colliders = colliders;
       if (env.stats.variants === 0)
         showWorldWarning(env.stats.blocked);
       if (hands) {
@@ -26073,13 +26124,19 @@
         });
         if (window.__DIYO_DEBUG)
           window.__DIYO_DEBUG.intro = intro;
+        intro.leftHand.traverse((o) => o.layers.set(1));
+        intro.rightHand.traverse((o) => o.layers.set(1));
+        scene.traverse((o) => {
+          if (o.isLight)
+            o.layers.enable(1);
+        });
       }
       if (!intro) {
         flame.setVisible(true);
         light.intensity = 40;
       }
       requestAnimationFrame(() => {
-        renderer.render(scene, camera);
+        renderFrame();
         requestAnimationFrame(() => {
           if (loader)
             loader.ready();
@@ -26114,6 +26171,16 @@
     } else {
       UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
       UI.instructions.style.display = "block";
+    }
+    if (intro) {
+      _handBasePos.copy(intro.rightHand.position);
+      _handBaseRot.copy(intro.rightHand.rotation);
+      handBaseReady = true;
+      handBobPhase = 0;
+      handIdleTime = 0;
+      handSwayX = 0;
+      handSwayYaw = 0;
+      handSwayPitch = 0;
     }
   }
   function startGame() {
@@ -26305,6 +26372,29 @@
       }
     }
   }
+  function resolveCollisions() {
+    if (!colliders.length)
+      return;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < colliders.length; i++) {
+        const c = colliders[i];
+        const dx = camera.position.x - c.x;
+        const dz = camera.position.z - c.z;
+        const min = c.r + PLAYER_RADIUS;
+        const d2 = dx * dx + dz * dz;
+        if (d2 >= min * min)
+          continue;
+        if (d2 < 1e-8) {
+          camera.position.x += min;
+          continue;
+        }
+        const d = Math.sqrt(d2);
+        const push = (min - d) / d;
+        camera.position.x += dx * push;
+        camera.position.z += dz * push;
+      }
+    }
+  }
   function updatePlayer(dt) {
     if (!state.playing || state.gameOver || state.won || state.cinematic) {
       return;
@@ -26327,6 +26417,7 @@
     if (move.lengthSq() > 0) {
       move.normalize();
       camera.position.addScaledVector(move, speed);
+      resolveCollisions();
     }
     if (state.keys["KeyE"]) {
       delete state.keys["KeyE"];
@@ -26404,6 +26495,66 @@
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   }
+  function updateHandBob(dt, motion) {
+    if (!handBaseReady || !intro)
+      return;
+    const hand = intro.rightHand;
+    const step = Math.min(dt || 0, 0.1);
+    handIdleTime += step;
+    const planar = Math.hypot(motion.localX || 0, motion.localZ || 0);
+    const speed = Math.min(1, planar / Math.max(state.moveSpeed, 1e-3));
+    const gait = speed * speed;
+    handBobPhase += step * (6 + 6 * speed);
+    const bobY = Math.sin(handBobPhase * 1.15) * 35e-4 * gait + Math.sin(handIdleTime * 1.25) * 45e-5;
+    const bobX = Math.cos(handBobPhase * 0.62) * 22e-4 * gait + Math.sin(handIdleTime * 0.9 + 0.6) * 3e-4;
+    const bobRoll = Math.sin(handBobPhase * 0.9) * 4e-3 * gait;
+    const inv = 1 / Math.max(step, 1e-3);
+    const yawRate = (motion.yawDelta || 0) * inv;
+    const pitchRate = (motion.pitchDelta || 0) * inv;
+    const targetYaw = Math.max(-0.05, Math.min(0.05, -yawRate * 0.02));
+    const targetPitch = Math.max(-0.035, Math.min(0.035, -pitchRate * 0.012));
+    const targetX = Math.max(-8e-3, Math.min(8e-3, -yawRate * 25e-4));
+    const ease = 1 - Math.exp(-12 * step);
+    handSwayYaw += (targetYaw - handSwayYaw) * ease;
+    handSwayPitch += (targetPitch - handSwayPitch) * ease;
+    handSwayX += (targetX - handSwayX) * ease;
+    hand.position.set(
+      _handBasePos.x + bobX + handSwayX,
+      _handBasePos.y + bobY,
+      _handBasePos.z
+    );
+    hand.rotation.set(
+      _handBaseRot.x + handSwayPitch + bobRoll * 0.3,
+      _handBaseRot.y + handSwayYaw,
+      _handBaseRot.z + bobRoll
+    );
+    camera.updateMatrixWorld(true);
+    const wick = hand.getObjectByName("diya_wick");
+    if (!wick)
+      return;
+    wick.getWorldPosition(_handWick);
+    camera.worldToLocal(_handWick);
+    intro.wickLocal.copy(_handWick);
+    flame.setWickPosition(
+      _handWick.x,
+      _handWick.y,
+      _handWick.z,
+      flame.mesh.scale.x
+    );
+    intro.handLight.position.set(_handWick.x, _handWick.y + 0.08, _handWick.z);
+  }
+  function renderFrame() {
+    renderer.autoClear = false;
+    renderer.clear();
+    camera.layers.set(0);
+    renderer.render(scene, camera);
+    renderer.shadowMap.autoUpdate = false;
+    renderer.clearDepth();
+    camera.layers.set(1);
+    renderer.render(scene, camera);
+    renderer.shadowMap.autoUpdate = true;
+    camera.layers.set(0);
+  }
   function animate() {
     requestAnimationFrame(animate);
     const rawDelta = clock.getDelta();
@@ -26423,20 +26574,28 @@
     _axisX.set(1, 0, 0).applyQuaternion(camera.quaternion);
     _axisY.set(0, 1, 0).applyQuaternion(camera.quaternion);
     _axisZ.set(0, 0, 1).applyQuaternion(camera.quaternion);
+    const localX = _velocity.dot(_axisX);
+    const localY = _velocity.dot(_axisY);
+    const localZ = _velocity.dot(_axisZ);
+    const yawDelta = state.yaw - _prevYaw;
+    const pitchDelta = state.pitch - _prevPitch;
     flame.update(rawDelta, {
-      localX: _velocity.dot(_axisX),
-      localY: _velocity.dot(_axisY),
-      localZ: _velocity.dot(_axisZ),
-      yawDelta: state.yaw - _prevYaw,
-      pitchDelta: state.pitch - _prevPitch,
+      localX,
+      localY,
+      localZ,
+      yawDelta,
+      pitchDelta,
       speed: _velocity.length()
     });
     if (intro && state.cinematic) {
       flame.uniforms.uIntensity.value *= intro.flameBoost;
     }
+    if (handBaseReady && !state.cinematic) {
+      updateHandBob(rawDelta, { localX, localZ, yawDelta, pitchDelta });
+    }
     _prevYaw = state.yaw;
     _prevPitch = state.pitch;
-    renderer.render(scene, camera);
+    renderFrame();
   }
   try {
     window.__DIYO_DEBUG = { state, loader: window.AsciiDiya && window.AsciiDiya.loader };
