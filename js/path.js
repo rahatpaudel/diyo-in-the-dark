@@ -62,6 +62,20 @@ export const RIDDLE_SITES = [
       { ne: 'मखमली', en: 'makhamali', branch: 'q4-correct', x: 1.1, z: -99.5, radius: 0.8, footprint: 0.82 },
       { ne: 'कमल', en: 'lotus', branch: 'q4-west', x: -4.7, z: -94.4, radius: 0.8, footprint: 0.82 }
     ]
+  },
+  {
+    id: 'q5',
+    kind: 'text',
+    titleNe: 'लक्ष्मीको वाहन',
+    subtitle: "Lakshmi's Vahana",
+    approach: { x: 1, z: -120 },
+    facing: { x: 1, z: -115 },
+    sign: { x: -2.1, z: -118.7, radius: 1.15, footprint: 0.85 },
+    stones: [
+      { icon: 'crow', branch: 'q5-west', x: -2.8, z: -116.4, radius: 0.8, footprint: 0.82 },
+      { icon: 'cow', branch: 'q5-middle', x: -1.7, z: -123.5, radius: 0.8, footprint: 0.82 },
+      { icon: 'owl', branch: 'q5-east', x: 3.6, z: -118.5, radius: 0.8, footprint: 0.82 }
+    ]
   }
 ];
 

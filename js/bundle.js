@@ -26666,6 +26666,20 @@
         { ne: "\u092E\u0916\u092E\u0932\u0940", en: "makhamali", branch: "q4-correct", x: 1.1, z: -99.5, radius: 0.8, footprint: 0.82 },
         { ne: "\u0915\u092E\u0932", en: "lotus", branch: "q4-west", x: -4.7, z: -94.4, radius: 0.8, footprint: 0.82 }
       ]
+    },
+    {
+      id: "q5",
+      kind: "text",
+      titleNe: "\u0932\u0915\u094D\u0937\u094D\u092E\u0940\u0915\u094B \u0935\u093E\u0939\u0928",
+      subtitle: "Lakshmi's Vahana",
+      approach: { x: 1, z: -120 },
+      facing: { x: 1, z: -115 },
+      sign: { x: -2.1, z: -118.7, radius: 1.15, footprint: 0.85 },
+      stones: [
+        { icon: "crow", branch: "q5-west", x: -2.8, z: -116.4, radius: 0.8, footprint: 0.82 },
+        { icon: "cow", branch: "q5-middle", x: -1.7, z: -123.5, radius: 0.8, footprint: 0.82 },
+        { icon: "owl", branch: "q5-east", x: 3.6, z: -118.5, radius: 0.8, footprint: 0.82 }
+      ]
     }
   ];
   var SAMPLE_STEP = 0.6;
