@@ -10,6 +10,17 @@ import * as THREE from './vendor/three.module.js';
 export const PATH_HALF_WIDTH = 1.25;
 export const HOUSE_POINT = { x: 0, z: -168 };
 
+// The first riddle site. One point of truth: the forest generator keeps these
+// clear, and riddle.js puts the sign and stones here.
+export const RIDDLE_SITE = {
+  approach: { x: 1.5, z: -24 },
+  sign: { x: 4.9, z: -31.5, radius: 2.6 },
+  stones: [
+    { icon: 'dog', branch: 'q1-correct', x: -2.3, z: -32.2, radius: 0.9 },
+    { icon: 'horse', branch: 'q1-decoy', x: 13.9, z: -32.4, radius: 0.9 }
+  ]
+};
+
 const SAMPLE_STEP = 0.6;
 const CELL = 4;
 const PATH_MARGIN = 0.35;
@@ -287,8 +298,18 @@ const RADIUS_BY_NAME = Object.fromEntries(TREES.map((t) => [t.name, t.radius]));
 
 // No upright tree may stand on any branch. The clearance uses the tree's own
 // footprint so a wide canopy cannot hang over a neighbouring trail either.
+const RIDDLE_SITES = [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones];
+
 function treeClearOfPaths(name, x, z, scale) {
   const radius = (RADIUS_BY_NAME[name] || 0) * scale;
+
+  // Keep the sign and the engraved stones out of the canopy.
+  for (const site of RIDDLE_SITES) {
+    if (Math.hypot(x - site.x, z - site.z) < site.radius + radius + 0.3) {
+      return false;
+    }
+  }
+
   const other = nearestPath(x, z, radius + PATH_HALF_WIDTH + PATH_MARGIN + 4);
   if (!other) return true;
   return other.dist >= PATH_HALF_WIDTH + radius + PATH_MARGIN + 0.3;

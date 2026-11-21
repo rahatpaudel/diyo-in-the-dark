@@ -3,6 +3,7 @@ import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
 import { loadHands, createIntro } from './intro.js';
 import { buildTerrain, heightAt } from './terrain.js';
+import { buildRiddleSign } from './riddle.js';
 import { pathSummary, nearestPath, PATH_HALF_WIDTH, HOUSE_POINT } from './path.js';
 
 /* ------------------------------------------------------------------ */
@@ -223,14 +224,24 @@ function loadWorld() {
   // the forest and the two arm models before it lets the menu in.
   const handsPromise = loadHands();
 
-  Promise.all([envPromise, handsPromise])
-    .then(([env, hands]) => {
+  // The first riddle site is built in code, so it only needs its SVG icons.
+  // A missing icon should not hold the whole forest hostage.
+  const riddlePromise = buildRiddleSign(scene, renderer).catch((err) => {
+    console.warn('[riddle] could not build the sign:', err);
+    return null;
+  });
+
+  Promise.all([envPromise, handsPromise, riddlePromise])
+    .then(([env, hands, riddle]) => {
       environment = env;
       console.info(
         '[world] ' + env.stats.instances + ' props from ' + env.stats.variants +
           ' models' + (env.stats.missing.length ? ' (missing: ' + env.stats.missing.join(', ') + ')' : '')
       );
-      if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.environment = env;
+      if (window.__DIYO_DEBUG) {
+        window.__DIYO_DEBUG.environment = env;
+        window.__DIYO_DEBUG.riddle = riddle;
+      }
 
       // An empty world is playable but pointless. Say why, rather than
       // leaving the player walking through a black void.
