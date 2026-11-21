@@ -27,6 +27,7 @@ const FRAG = `
   uniform float uSpeed;
   uniform float uFlutter;
   uniform float uIntensity;
+  uniform float uBright;
   uniform vec2  uLean;
   uniform float uSeed;
   varying vec2 vUv;
@@ -200,7 +201,7 @@ const FRAG = `
       trans *= 1.0 - aStep;
     }
 
-    gl_FragColor = vec4(acc * uIntensity, 1.0);
+    gl_FragColor = vec4(acc * uIntensity * uBright, 1.0);
   }
 `;
 
@@ -212,6 +213,7 @@ export function createFlame(camera) {
     uSpeed: { value: 0 },
     uFlutter: { value: 0 },
     uIntensity: { value: 1 },
+    uBright: { value: 1 },
     uLean: { value: new THREE.Vector2() },
     uSeed: { value: 3.7 }
   };
@@ -330,6 +332,11 @@ export function createFlame(camera) {
     catchTime = 0;
   }
 
+  /** Overall density of the settled flame (the diya burns brighter). */
+  function setBrightness(v) {
+    uniforms.uBright.value = v > 0 ? v : 1;
+  }
+
   function setVisible(v) {
     mesh.visible = v;
   }
@@ -358,6 +365,7 @@ export function createFlame(camera) {
     uniforms,
     update,
     ignite,
+    setBrightness,
     setVisible,
     setWickPosition,
     dispose,

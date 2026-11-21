@@ -24913,6 +24913,7 @@
   uniform float uSpeed;
   uniform float uFlutter;
   uniform float uIntensity;
+  uniform float uBright;
   uniform vec2  uLean;
   uniform float uSeed;
   varying vec2 vUv;
@@ -25086,7 +25087,7 @@
       trans *= 1.0 - aStep;
     }
 
-    gl_FragColor = vec4(acc * uIntensity, 1.0);
+    gl_FragColor = vec4(acc * uIntensity * uBright, 1.0);
   }
 `;
   var clamp2 = MathUtils.clamp;
@@ -25096,6 +25097,7 @@
       uSpeed: { value: 0 },
       uFlutter: { value: 0 },
       uIntensity: { value: 1 },
+      uBright: { value: 1 },
       uLean: { value: new Vector2() },
       uSeed: { value: 3.7 }
     };
@@ -25172,6 +25174,9 @@
     function ignite() {
       catchTime = 0;
     }
+    function setBrightness(v) {
+      uniforms.uBright.value = v > 0 ? v : 1;
+    }
     function setVisible(v) {
       mesh.visible = v;
     }
@@ -25191,6 +25196,7 @@
       uniforms,
       update,
       ignite,
+      setBrightness,
       setVisible,
       setWickPosition,
       dispose,
@@ -25232,6 +25238,7 @@
   var LIGHT_SCALE = 0.9;
   var APPROACH_ROT = [0.3, -0.5, 0.1];
   var FLAME_MATCH_SCALE = 0.5;
+  var FLAME_DIYA_GLOW = 1.8;
   var MAX_STRIKE_REACH = 0.92;
   var SCRAPE_DISTANCE = 0.1;
   var SCRAPE2_DISTANCE = 0.125;
@@ -25639,7 +25646,13 @@
       applyRightPose(RIGHT_POSE);
       wickInCamera(wickLocal);
       flame2.setVisible(true);
-      flame2.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
+      flame2.setWickPosition(
+        wickLocal.x,
+        wickLocal.y,
+        wickLocal.z,
+        FLAME_MATCH_SCALE
+      );
+      flame2.setBrightness(FLAME_DIYA_GLOW);
       handLight.position.copy(wickLocal);
       handLight.position.y += 0.08;
       handLight.intensity = 3.2;
@@ -25846,6 +25859,7 @@
         const tip = tipLocal(scratch);
         if (time < CARRY_END) {
           flame2.setWickPosition(tip.x, tip.y, tip.z, FLAME_MATCH_SCALE);
+          flame2.setBrightness(1);
           handLight.position.copy(tip);
           handLight.position.y += 0.04;
           handLight.intensity = 2.4 + 0.6 * Math.sin(time * 9);
@@ -25855,13 +25869,19 @@
           const x = lerp2(tip.x, wickNow.x, e);
           const y = lerp2(tip.y, wickNow.y, e);
           const z = lerp2(tip.z, wickNow.z, e);
-          const s = lerp2(FLAME_MATCH_SCALE, 1, e);
-          flame2.setWickPosition(x, y, z, s);
+          flame2.setWickPosition(x, y, z, FLAME_MATCH_SCALE);
+          flame2.setBrightness(lerp2(1, FLAME_DIYA_GLOW, e));
           handLight.position.set(x, y + 0.08, z);
           handLight.intensity = lerp2(3, 4.2, e);
           spot.intensity = lerp2(16, 40, e);
         } else {
-          flame2.setWickPosition(wickNow.x, wickNow.y, wickNow.z, 1);
+          flame2.setWickPosition(
+            wickNow.x,
+            wickNow.y,
+            wickNow.z,
+            FLAME_MATCH_SCALE
+          );
+          flame2.setBrightness(FLAME_DIYA_GLOW);
           handLight.position.copy(wickNow);
           handLight.position.y += 0.08;
           handLight.intensity = 4.2;

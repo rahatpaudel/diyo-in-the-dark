@@ -75,6 +75,8 @@ const LIGHT_SCALE = 0.9;
 const APPROACH_ROT = [0.3, -0.5, 0.1];
 
 const FLAME_MATCH_SCALE = 0.5;
+// The diya flame is the same size as the match flame, just denser and brighter.
+const FLAME_DIYA_GLOW = 1.8;
 
 // How far in front of the camera the striking hand is allowed to reach. The
 // rock sits further out; the arm is kept close so the wrist stays near the
@@ -597,7 +599,13 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     wickInCamera(wickLocal);
 
     flame.setVisible(true);
-    flame.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
+    flame.setWickPosition(
+      wickLocal.x,
+      wickLocal.y,
+      wickLocal.z,
+      FLAME_MATCH_SCALE
+    );
+    flame.setBrightness(FLAME_DIYA_GLOW);
     handLight.position.copy(wickLocal);
     handLight.position.y += 0.08;
     handLight.intensity = 3.2;
@@ -850,6 +858,7 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
       const tip = tipLocal(scratch);
       if (time < CARRY_END) {
         flame.setWickPosition(tip.x, tip.y, tip.z, FLAME_MATCH_SCALE);
+        flame.setBrightness(1);
         handLight.position.copy(tip);
         handLight.position.y += 0.04;
         handLight.intensity = 2.4 + 0.6 * Math.sin(time * 9);
@@ -863,14 +872,20 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
         const x = lerp(tip.x, wickNow.x, e);
         const y = lerp(tip.y, wickNow.y, e);
         const z = lerp(tip.z, wickNow.z, e);
-        const s = lerp(FLAME_MATCH_SCALE, 1, e);
-        flame.setWickPosition(x, y, z, s);
+        flame.setWickPosition(x, y, z, FLAME_MATCH_SCALE);
+        flame.setBrightness(lerp(1, FLAME_DIYA_GLOW, e));
         handLight.position.set(x, y + 0.08, z);
         handLight.intensity = lerp(3.0, 4.2, e);
         spot.intensity = lerp(16, 40, e);
       } else {
         // The right hand may still be settling back; the flame rides the wick.
-        flame.setWickPosition(wickNow.x, wickNow.y, wickNow.z, 1);
+        flame.setWickPosition(
+          wickNow.x,
+          wickNow.y,
+          wickNow.z,
+          FLAME_MATCH_SCALE
+        );
+        flame.setBrightness(FLAME_DIYA_GLOW);
         handLight.position.copy(wickNow);
         handLight.position.y += 0.08;
         handLight.intensity = 4.2;
