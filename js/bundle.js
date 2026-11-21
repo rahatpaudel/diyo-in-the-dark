@@ -29705,6 +29705,8 @@
   var PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
   var COMMIT_DISTANCE = 3.4;
   var STRANDED_SCREEN_DELAY = 4.2;
+  var WIN_RADIUS = 4.8;
+  var WIN_SCREEN_DELAY = 6;
   var state = {
     playing: false,
     gameOver: false,
@@ -29718,6 +29720,9 @@
     stranded: false,
     deathTime: 0,
     deathNode: null,
+    // House arrival sequence.
+    ending: false,
+    endingTime: 0,
     keys: {},
     moveSpeed: 3,
     mouseSensitivity: 2e-3,
@@ -29744,6 +29749,9 @@
   var handFill;
   var handFlame;
   var wind;
+  var houseBulbs = [];
+  var houseLights = [];
+  var houseGlow = [];
   var environment = null;
   var ground = null;
   var intro = null;
@@ -29953,6 +29961,9 @@
   }
   function buildHouse() {
     house = new Group();
+    houseBulbs = [];
+    houseLights = [];
+    houseGlow = [];
     const hx = HOUSE_POINT.x;
     const hz = HOUSE_POINT.z;
     house.position.set(hx, heightAt(hx, hz), hz);
@@ -30011,6 +30022,8 @@
     addWindow(2.15, 3, 3.205, 0);
     addWindow(-3.205, 3, 0, -Math.PI / 2);
     addWindow(3.205, 3, 0, Math.PI / 2);
+    houseGlow.push({ mat: glowMat, color: 16755021, peak: 1.15 });
+    houseGlow.push({ mat: winMat, color: 16764810, peak: 0.9 });
     const marigold = new MeshStandardMaterial({
       color: 7027728,
       roughness: 0.85
@@ -30025,12 +30038,78 @@
     step.position.set(0, 0.15, 3.9);
     step.receiveShadow = true;
     house.add(step);
+    const bulbGeometry = new SphereGeometry(0.075, 6, 5);
+    const bulbColors = [
+      16732485,
+      16754219,
+      16769126,
+      5888378,
+      5227519,
+      13663231
+    ];
+    const wireMaterial = new LineBasicMaterial({ color: 1773577 });
+    const rows = [
+      { ax: -3, ay: 4.02, az: 3.28, bx: 3, by: 4.02, bz: 3.28, count: 13 },
+      { ax: -1.8, ay: 3.44, az: 5.08, bx: 1.8, by: 3.44, bz: 5.08, count: 7 },
+      { ax: 3.25, ay: 4.02, az: -3, bx: 3.25, by: 4.02, bz: 3, count: 7 },
+      { ax: -3.25, ay: 4.02, az: -3, bx: -3.25, by: 4.02, bz: 3, count: 7 }
+    ];
+    let bulbIndex = 0;
+    for (const row of rows) {
+      const points = [];
+      for (let i = 0; i < row.count; i++) {
+        const t = row.count === 1 ? 0 : i / (row.count - 1);
+        const x = row.ax + (row.bx - row.ax) * t;
+        const y = row.ay + (row.by - row.ay) * t;
+        const z = row.az + (row.bz - row.az) * t;
+        const color = bulbColors[bulbIndex % bulbColors.length];
+        const material = new MeshStandardMaterial({
+          color: 1182728,
+          emissive: color,
+          emissiveIntensity: 0,
+          roughness: 0.55
+        });
+        const bulb = new Mesh(bulbGeometry, material);
+        bulb.position.set(x, y, z);
+        house.add(bulb);
+        houseBulbs.push({
+          mat: material,
+          phase: bulbIndex * 1.7,
+          delay: 0.5 + bulbIndex * 0.07,
+          peak: 1.7
+        });
+        points.push(new Vector3(x, y, z));
+        bulbIndex++;
+      }
+      house.add(
+        new Line(
+          new BufferGeometry().setFromPoints(points),
+          wireMaterial
+        )
+      );
+    }
+    const celebration = [
+      { color: 16739133, x: -2.3, y: 3.3, z: 5.1, peak: 26, delay: 0.9 },
+      { color: 5227519, x: 2.3, y: 3.7, z: 4.2, peak: 22, delay: 1.5 },
+      { color: 16765286, x: 0, y: 4.5, z: 4.9, peak: 30, delay: 0.6 }
+    ];
+    for (const entry of celebration) {
+      const celebrationLight = new PointLight(entry.color, 0, 13, 2);
+      celebrationLight.position.set(entry.x, entry.y, entry.z);
+      house.add(celebrationLight);
+      houseLights.push({
+        light: celebrationLight,
+        peak: entry.peak,
+        delay: entry.delay,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
     scene.add(house);
   }
   function onKeyDown(e) {
     if (state.cinematic)
       return;
-    if (e.code === "KeyV" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && state.playing && !state.gameOver && !state.won && !state.stranded) {
+    if (e.code === "KeyV" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && state.playing && !state.gameOver && !state.won && !state.stranded && !state.ending) {
       toggleSpectator();
       return;
     }
@@ -30145,6 +30224,10 @@
       updateStranded(dt);
       return;
     }
+    if (state.ending) {
+      updateEnding(dt);
+      return;
+    }
     const speed = state.moveSpeed * dt;
     const move = new Vector3();
     const forward = new Vector3();
@@ -30176,15 +30259,10 @@
     checkWrongPath();
     if (state.stranded)
       return;
-    if (state.keys["KeyE"]) {
-      delete state.keys["KeyE"];
-      const dHouse = camera.position.distanceTo(house.position);
-      if (dHouse < 5) {
-        endGame();
-      }
-    }
+    checkEnding();
+    if (state.ending)
+      return;
     light.intensity = 44 * flame.flicker;
-    checkInteractions();
   }
   function checkWrongPath() {
     if (state.gameOver || state.won || state.stranded)
@@ -30301,13 +30379,72 @@
     UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
     UI.instructions.style.display = document.pointerLockElement === document.body ? "none" : "block";
   }
-  function checkInteractions() {
-    const dHouse = camera.position.distanceTo(house.position);
-    if (dHouse < 5) {
-      UI.message.textContent = "Press E to leave your Diyo at the house";
-      UI.message.style.display = "block";
-    } else {
-      UI.message.style.display = "none";
+  function checkEnding() {
+    if (state.won || state.gameOver || state.ending || state.stranded)
+      return;
+    const dx = camera.position.x - house.position.x;
+    const dz = camera.position.z - house.position.z;
+    if (Math.hypot(dx, dz) < WIN_RADIUS)
+      startEnding();
+  }
+  function startEnding() {
+    state.ending = true;
+    state.endingTime = 0;
+    state.keys = {};
+    UI.message.style.display = "none";
+    UI.instructions.style.display = "none";
+    for (const glow of houseGlow) {
+      glow.mat.emissive.set(glow.color);
+      glow.mat.emissiveIntensity = 0;
+    }
+  }
+  function updateEnding(dt) {
+    state.endingTime += dt;
+    const t = state.endingTime;
+    const clamp3 = (v) => Math.min(1, Math.max(0, v));
+    for (const bulb of houseBulbs) {
+      const lit = clamp3((t - bulb.delay) / 0.8);
+      const twinkle = 0.82 + 0.18 * Math.sin(t * 4.5 + bulb.phase);
+      bulb.mat.emissiveIntensity = lit * bulb.peak * twinkle;
+    }
+    for (const glow of houseGlow) {
+      const lit = clamp3((t - 0.4) / 2);
+      glow.mat.emissiveIntensity = lit * glow.peak;
+    }
+    for (const entry of houseLights) {
+      const lit = clamp3((t - entry.delay) / 2.2);
+      entry.light.intensity = lit * entry.peak * (0.9 + 0.1 * Math.sin(t * 2.1 + entry.phase));
+    }
+    light.intensity = 44 * flame.flicker;
+    if (t >= WIN_SCREEN_DELAY)
+      showWinScreen();
+  }
+  function showWinScreen() {
+    if (state.won)
+      return;
+    state.playing = false;
+    state.gameOver = true;
+    state.won = true;
+    state.ending = false;
+    if (document.exitPointerLock)
+      document.exitPointerLock();
+    UI.instructions.style.display = "none";
+    UI.message.style.display = "none";
+    UI.overlay.classList.remove("menu", "is-leaving", "stranded");
+    UI.overlay.classList.add("won");
+    UI.overlay.innerHTML = `
+    <h1 style="color:#ffd27a">You win</h1>
+    <p>The house answers your little flame with every colour it has.</p>
+    <div class="overlay-actions">
+      <button id="again-btn" type="button">Play again</button>
+    </div>
+  `;
+    UI.overlay.style.display = "flex";
+    const againBtn = document.getElementById("again-btn");
+    if (againBtn) {
+      againBtn.addEventListener("click", () => {
+        window.location.reload();
+      });
     }
   }
   function updateSpectator(dt) {
@@ -30337,30 +30474,6 @@
     if (move.lengthSq() > 0) {
       camera.position.addScaledVector(move.normalize(), speed);
     }
-  }
-  function endGame() {
-    state.playing = false;
-    state.gameOver = true;
-    state.won = true;
-    if (document.exitPointerLock) {
-      document.exitPointerLock();
-    }
-    UI.overlay.innerHTML = `
-    <h1 style="color:#ffaa00">HOUSE LIGHTED</h1>
-    <p>You carried the Diyo through the dark and lit the house.<br>It glows warm against the forest.</p>
-    <button onclick="location.reload()">Play Again</button>
-  `;
-    UI.overlay.style.display = "flex";
-    house.traverse((child) => {
-      if (!child.isMesh || !child.material)
-        return;
-      if (child.material.emissive) {
-        child.material.emissive.set(16755200);
-        child.material.emissiveIntensity = 0.5;
-      } else if (child.material.color) {
-        child.material.color.set(16765562);
-      }
-    });
   }
   function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;

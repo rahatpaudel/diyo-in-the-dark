@@ -24,6 +24,10 @@ const PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
 const COMMIT_DISTANCE = 3.4;
 // Time for the gust to rise and the diya to die before the screen appears.
 const STRANDED_SCREEN_DELAY = 4.2;
+// The house is reached just before the trail's end; this is a doorstep radius.
+const WIN_RADIUS = 4.8;
+// Let the house light up and settle before the title card.
+const WIN_SCREEN_DELAY = 6.0;
 
 const state = {
   playing: false,
@@ -41,6 +45,10 @@ const state = {
   stranded: false,
   deathTime: 0,
   deathNode: null,
+
+  // House arrival sequence.
+  ending: false,
+  endingTime: 0,
 
   keys: {},
   moveSpeed: 3,
@@ -71,6 +79,9 @@ const UI = {
 /* ------------------------------------------------------------------ */
 let scene, camera, renderer, clock;
 let light, house, flame, handFill, handFlame, wind;
+let houseBulbs = [];
+let houseLights = [];
+let houseGlow = [];
 let environment = null;
 let ground = null;
 let intro = null;
@@ -398,6 +409,9 @@ function startGame() {
 /* ------------------------------------------------------------------ */
 function buildHouse() {
   house = new THREE.Group();
+  houseBulbs = [];
+  houseLights = [];
+  houseGlow = [];
   const hx = HOUSE_POINT.x;
   const hz = HOUSE_POINT.z;
   house.position.set(hx, heightAt(hx, hz), hz);
@@ -470,6 +484,10 @@ function buildHouse() {
   addWindow(-3.205, 3.0, 0, -Math.PI / 2);
   addWindow(3.205, 3.0, 0, Math.PI / 2);
 
+  // Door pane and windows are woken up during the ending.
+  houseGlow.push({ mat: glowMat, color: 0xffa94d, peak: 1.15 });
+  houseGlow.push({ mat: winMat, color: 0xffcf8a, peak: 0.9 });
+
   // Marigold garland over the door.
   const marigold = new THREE.MeshStandardMaterial({
     color: 0x6b3c10,
@@ -486,6 +504,79 @@ function buildHouse() {
   step.position.set(0, 0.15, 3.9);
   step.receiveShadow = true;
   house.add(step);
+
+  // Tihar string lights. They are dark until the house is reached, then the
+  // bulbs chase around the eaves in colour.
+  const bulbGeometry = new THREE.SphereGeometry(0.075, 6, 5);
+  const bulbColors = [
+    0xff5145,
+    0xffa62b,
+    0xffe066,
+    0x59d97a,
+    0x4fc3ff,
+    0xd07bff
+  ];
+  const wireMaterial = new THREE.LineBasicMaterial({ color: 0x1b1009 });
+  const rows = [
+    { ax: -3.0, ay: 4.02, az: 3.28, bx: 3.0, by: 4.02, bz: 3.28, count: 13 },
+    { ax: -1.8, ay: 3.44, az: 5.08, bx: 1.8, by: 3.44, bz: 5.08, count: 7 },
+    { ax: 3.25, ay: 4.02, az: -3.0, bx: 3.25, by: 4.02, bz: 3.0, count: 7 },
+    { ax: -3.25, ay: 4.02, az: -3.0, bx: -3.25, by: 4.02, bz: 3.0, count: 7 }
+  ];
+
+  let bulbIndex = 0;
+  for (const row of rows) {
+    const points = [];
+    for (let i = 0; i < row.count; i++) {
+      const t = row.count === 1 ? 0 : i / (row.count - 1);
+      const x = row.ax + (row.bx - row.ax) * t;
+      const y = row.ay + (row.by - row.ay) * t;
+      const z = row.az + (row.bz - row.az) * t;
+      const color = bulbColors[bulbIndex % bulbColors.length];
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x120c08,
+        emissive: color,
+        emissiveIntensity: 0,
+        roughness: 0.55
+      });
+      const bulb = new THREE.Mesh(bulbGeometry, material);
+      bulb.position.set(x, y, z);
+      house.add(bulb);
+      houseBulbs.push({
+        mat: material,
+        phase: bulbIndex * 1.7,
+        delay: 0.5 + bulbIndex * 0.07,
+        peak: 1.7
+      });
+      points.push(new THREE.Vector3(x, y, z));
+      bulbIndex++;
+    }
+    house.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(points),
+        wireMaterial
+      )
+    );
+  }
+
+  // Soft coloured pools on the porch and walls. No shadows: this is glow,
+  // not a second key light.
+  const celebration = [
+    { color: 0xff6b3d, x: -2.3, y: 3.3, z: 5.1, peak: 26, delay: 0.9 },
+    { color: 0x4fc3ff, x: 2.3, y: 3.7, z: 4.2, peak: 22, delay: 1.5 },
+    { color: 0xffd166, x: 0, y: 4.5, z: 4.9, peak: 30, delay: 0.6 }
+  ];
+  for (const entry of celebration) {
+    const celebrationLight = new THREE.PointLight(entry.color, 0, 13, 2);
+    celebrationLight.position.set(entry.x, entry.y, entry.z);
+    house.add(celebrationLight);
+    houseLights.push({
+      light: celebrationLight,
+      peak: entry.peak,
+      delay: entry.delay,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
 
   scene.add(house);
 }
@@ -507,7 +598,8 @@ function onKeyDown(e) {
     state.playing &&
     !state.gameOver &&
     !state.won &&
-    !state.stranded
+    !state.stranded &&
+    !state.ending
   ) {
     toggleSpectator();
     return;
@@ -675,6 +767,11 @@ function updatePlayer(dt) {
     return;
   }
 
+  if (state.ending) {
+    updateEnding(dt);
+    return;
+  }
+
   const speed = state.moveSpeed * dt;
   const move = new THREE.Vector3();
 
@@ -715,19 +812,11 @@ function updatePlayer(dt) {
   checkWrongPath();
   if (state.stranded) return;
 
-  // Consume interact key
-  if (state.keys['KeyE']) {
-    delete state.keys['KeyE'];
-    const dHouse = camera.position.distanceTo(house.position);
-    if (dHouse < 5) {
-      endGame();
-    }
-  }
+  checkEnding();
+  if (state.ending) return;
 
   // The spotlight and the visible flame share one breathing rhythm.
   light.intensity = 44 * flame.flicker;
-
-  checkInteractions();
 }
 
 function checkWrongPath() {
@@ -856,13 +945,84 @@ function respawn() {
     document.pointerLockElement === document.body ? 'none' : 'block';
 }
 
-function checkInteractions() {
-  const dHouse = camera.position.distanceTo(house.position);
-  if (dHouse < 5) {
-    UI.message.textContent = 'Press E to leave your Diyo at the house';
-    UI.message.style.display = 'block';
-  } else {
-    UI.message.style.display = 'none';
+function checkEnding() {
+  if (state.won || state.gameOver || state.ending || state.stranded) return;
+
+  const dx = camera.position.x - house.position.x;
+  const dz = camera.position.z - house.position.z;
+  if (Math.hypot(dx, dz) < WIN_RADIUS) startEnding();
+}
+
+function startEnding() {
+  state.ending = true;
+  state.endingTime = 0;
+  state.keys = {};
+  UI.message.style.display = 'none';
+  UI.instructions.style.display = 'none';
+
+  for (const glow of houseGlow) {
+    glow.mat.emissive.set(glow.color);
+    glow.mat.emissiveIntensity = 0;
+  }
+}
+
+function updateEnding(dt) {
+  state.endingTime += dt;
+  const t = state.endingTime;
+  const clamp = (v) => Math.min(1, Math.max(0, v));
+
+  // The bulbs chase around the house, then settle into a warm twinkle.
+  for (const bulb of houseBulbs) {
+    const lit = clamp((t - bulb.delay) / 0.8);
+    const twinkle = 0.82 + 0.18 * Math.sin(t * 4.5 + bulb.phase);
+    bulb.mat.emissiveIntensity = lit * bulb.peak * twinkle;
+  }
+
+  // Door and windows warm up behind the string lights.
+  for (const glow of houseGlow) {
+    const lit = clamp((t - 0.4) / 2.0);
+    glow.mat.emissiveIntensity = lit * glow.peak;
+  }
+
+  for (const entry of houseLights) {
+    const lit = clamp((t - entry.delay) / 2.2);
+    entry.light.intensity =
+      lit * entry.peak * (0.9 + 0.1 * Math.sin(t * 2.1 + entry.phase));
+  }
+
+  // The diya is still in the player's hand while the house wakes.
+  light.intensity = 44 * flame.flicker;
+
+  if (t >= WIN_SCREEN_DELAY) showWinScreen();
+}
+
+function showWinScreen() {
+  if (state.won) return;
+  state.playing = false;
+  state.gameOver = true;
+  state.won = true;
+  state.ending = false;
+
+  if (document.exitPointerLock) document.exitPointerLock();
+
+  UI.instructions.style.display = 'none';
+  UI.message.style.display = 'none';
+  UI.overlay.classList.remove('menu', 'is-leaving', 'stranded');
+  UI.overlay.classList.add('won');
+  UI.overlay.innerHTML = `
+    <h1 style="color:#ffd27a">You win</h1>
+    <p>The house answers your little flame with every colour it has.</p>
+    <div class="overlay-actions">
+      <button id="again-btn" type="button">Play again</button>
+    </div>
+  `;
+  UI.overlay.style.display = 'flex';
+
+  const againBtn = document.getElementById('again-btn');
+  if (againBtn) {
+    againBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
   }
 }
 
@@ -895,39 +1055,6 @@ function updateSpectator(dt) {
   if (move.lengthSq() > 0) {
     camera.position.addScaledVector(move.normalize(), speed);
   }
-}
-
-/* ------------------------------------------------------------------ */
-/*  End game                                                          */
-/* ------------------------------------------------------------------ */
-function endGame() {
-  state.playing = false;
-  state.gameOver = true;
-  state.won = true;
-
-  if (document.exitPointerLock) {
-    document.exitPointerLock();
-  }
-
-  UI.overlay.innerHTML = `
-    <h1 style="color:#ffaa00">HOUSE LIGHTED</h1>
-    <p>You carried the Diyo through the dark and lit the house.<br>It glows warm against the forest.</p>
-    <button onclick="location.reload()">Play Again</button>
-  `;
-
-  UI.overlay.style.display = 'flex';
-
-  house.traverse((child) => {
-    if (!child.isMesh || !child.material) return;
-    if (child.material.emissive) {
-      // Standard materials: light up via emissive
-      child.material.emissive.set(0xffaa00);
-      child.material.emissiveIntensity = 0.5;
-    } else if (child.material.color) {
-      // Basic materials (windows): brighten the color instead
-      child.material.color.set(0xffd27a);
-    }
-  });
 }
 
 /* ------------------------------------------------------------------ */

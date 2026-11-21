@@ -120,27 +120,27 @@ body {
 
 /* Stranded screen: the veil settles in while the title etches into place. */
 #overlay.stranded {
-  animation: stranded-veil 900ms ease-out both;
+  animation: screen-veil 900ms ease-out both;
 }
 
 #overlay.stranded h1 {
-  animation: stranded-title 1500ms cubic-bezier(0.16, 0.84, 0.3, 1) both;
+  animation: screen-title 1500ms cubic-bezier(0.16, 0.84, 0.3, 1) both;
 }
 
 #overlay.stranded p {
-  animation: stranded-rise 1100ms ease-out 600ms both;
+  animation: screen-rise 1100ms ease-out 600ms both;
 }
 
 #overlay.stranded .overlay-actions {
-  animation: stranded-rise 1100ms ease-out 1050ms both;
+  animation: screen-rise 1100ms ease-out 1050ms both;
 }
 
-@keyframes stranded-veil {
+@keyframes screen-veil {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes stranded-title {
+@keyframes screen-title {
   0% {
     opacity: 0;
     transform: translateY(22px);
@@ -159,7 +159,7 @@ body {
   }
 }
 
-@keyframes stranded-rise {
+@keyframes screen-rise {
   from {
     opacity: 0;
     transform: translateY(12px);
@@ -168,6 +168,30 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Win screen: let the lit house stay visible behind a softer veil. */
+#overlay.won {
+  background:
+    radial-gradient(
+      120% 95% at 50% 60%,
+      rgba(32, 17, 8, 0.22) 0%,
+      rgba(7, 6, 10, 0.7) 55%,
+      rgba(3, 3, 6, 0.9) 100%
+    );
+  animation: screen-veil 1100ms ease-out both;
+}
+
+#overlay.won h1 {
+  animation: screen-title 1600ms cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+
+#overlay.won p {
+  animation: screen-rise 1200ms ease-out 600ms both;
+}
+
+#overlay.won .overlay-actions {
+  animation: screen-rise 1200ms ease-out 1100ms both;
 }
 
 #boot-error {
