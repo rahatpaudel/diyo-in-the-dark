@@ -30,7 +30,7 @@ const RIGHT_URL = HAND_DIR + 'hand_right.glb';
 // few degrees to the right so it faces outward, away from the middle of frame.
 const RIGHT_POSE = {
   position: [0.43, -0.45, -0.13],
-  rotation: [0, -0.2, 0],
+  rotation: [0, -0.6, 0],
   scale: 0.8
 };
 
