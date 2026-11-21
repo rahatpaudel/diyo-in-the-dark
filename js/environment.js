@@ -14,6 +14,7 @@
  */
 import * as THREE from './vendor/three.module.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
+import { MeshBVH } from './vendor/three-mesh-bvh.module.js';
 import { FOREST } from './forest-data.js';
 
 const MODEL_DIR = 'models/';
@@ -258,32 +259,18 @@ function sectorOf(x, z) {
 }
 
 /**
- * Collision radius for a prop. Trees use a trunk-sized circle derived from
- * their footprint because the low-poly canopies flare all the way to the
- * ground; rocks use their actual low slice; pebbles are stepped over.
+ * Broad-phase radius for a prop: the full XZ extent of its visible mesh.
+ * Trees and rocks are tested against their actual triangles after this, so
+ * this only has to be generous enough not to skip a nearby collider.
  */
 function collisionRadius(geometry, kind) {
   if (kind === 'pebble') return 0;
   geometry.computeBoundingBox();
   const bb = geometry.boundingBox;
-
-  if (kind === 'tree') {
-    const footprint = Math.min(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-    return Math.min(0.5, Math.max(0.3, footprint * 0.1));
-  }
-
-  const pos = geometry.attributes.position;
-  const height = bb.max.y - bb.min.y;
-  const cutoff = bb.min.y + height * 0.45;
-  let r2 = 0;
-  for (let i = 0; i < pos.count; i++) {
-    if (pos.getY(i) > cutoff) continue;
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    const d = x * x + z * z;
-    if (d > r2) r2 = d;
-  }
-  return Math.max(0.2, Math.sqrt(r2) * 0.95);
+  return Math.hypot(
+    Math.max(-bb.min.x, bb.max.x),
+    Math.max(-bb.min.z, bb.max.z)
+  );
 }
 
 /**
@@ -377,6 +364,8 @@ function build(scene, loaded, options) {
     }
     stats.variants++;
     const solidRadius = collisionRadius(prepared.geometry, kind);
+    // Build the triangle BVH once per model and share it across instances.
+    const bvh = kind === 'pebble' ? null : new MeshBVH(prepared.geometry);
 
     if (!sharedMaterial) {
       const src = prepared.material;
@@ -419,15 +408,17 @@ function build(scene, loaded, options) {
         dummy.scale.setScalar(scale);
         dummy.updateMatrix();
         inst.setMatrixAt(i, dummy.matrix);
-        if (solidRadius > 0) {
-          // Cap wide rock bases and low canopies so they cannot swallow the
-          // player's spawn point or build invisible walls across the forest.
-          const cap = kind === 'rock' ? 1.5 : 0.8;
+        if (bvh) {
+          const matrix = dummy.matrix.clone();
           colliders.push({
             x,
             z,
-            r: Math.min(solidRadius * scale, cap),
-            name
+            r: solidRadius * scale,
+            bvh,
+            geometry: prepared.geometry,
+            matrix,
+            inverse: matrix.clone().invert(),
+            scale
           });
         }
 

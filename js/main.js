@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.js';
+import { getTriangleHitPointInfo } from './vendor/three-mesh-bvh.module.js';
 import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
 import { loadHands, createIntro } from './intro.js';
@@ -589,25 +590,86 @@ function onPointerLockChange() {
 /* ------------------------------------------------------------------ */
 /*  Gameplay update (fixed timestep)                                  */
 /* ------------------------------------------------------------------ */
+
+// The player is treated as a stack of spheres along the body. The world is
+// static and low-poly, so three closest-point BVH queries per nearby prop is
+// cheap and resolves against the actual trunks, branches, and boulders.
+const COLLISION_HEIGHTS = [0.35, 0.9, 1.45];
+// Keep a hair of clearance so leaves and bark never slice into the near plane.
+const COLLISION_SKIN = 0.02;
+const _localSphere = new THREE.Vector3();
+const _worldSphere = new THREE.Vector3();
+const _closest = {
+  point: new THREE.Vector3(),
+  distance: 0,
+  faceIndex: -1
+};
+const _triInfo = {
+  face: { normal: new THREE.Vector3() },
+  uv: new THREE.Vector2(),
+  barycoord: new THREE.Vector3()
+};
+const _pushLocal = new THREE.Vector3();
+const _pushWorld = new THREE.Vector3();
+const _normal = new THREE.Vector3();
+
 function resolveCollisions() {
   if (!colliders.length) return;
-  // Two passes settle the player cleanly between neighbouring trunks.
-  for (let pass = 0; pass < 2; pass++) {
+  const radiusWorld = PLAYER_RADIUS + COLLISION_SKIN;
+  // Three passes settle the player cleanly in concave corners and dense leaves.
+  for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
+      if (!c.bvh) continue;
+
+      // Broad phase: full-mesh footprint plus the player's radius.
       const dx = camera.position.x - c.x;
       const dz = camera.position.z - c.z;
-      const min = c.r + PLAYER_RADIUS;
-      const d2 = dx * dx + dz * dz;
-      if (d2 >= min * min) continue;
-      if (d2 < 1e-8) {
-        camera.position.x += min;
-        continue;
+      const reach = c.r + radiusWorld + 0.05;
+      if (dx * dx + dz * dz > reach * reach) continue;
+
+      const radiusLocal = radiusWorld / c.scale;
+      for (let h = 0; h < COLLISION_HEIGHTS.length; h++) {
+        const y = COLLISION_HEIGHTS[h];
+        _localSphere
+          .set(camera.position.x, y, camera.position.z)
+          .applyMatrix4(c.inverse);
+
+        const hit = c.bvh.closestPointToPoint(
+          _localSphere,
+          _closest,
+          0,
+          radiusLocal
+        );
+        if (!hit) continue;
+
+        getTriangleHitPointInfo(hit.point, c.geometry, hit.faceIndex, _triInfo);
+        _normal.copy(_triInfo.face.normal);
+
+        // Positive = outside the surface. Negative means the sphere centre
+        // slipped just behind the nearest face, so push out along its normal.
+        const signed = _pushLocal
+          .copy(_localSphere)
+          .sub(hit.point)
+          .dot(_normal);
+
+        if (signed >= 0) {
+          _pushLocal.copy(_localSphere).sub(hit.point);
+          const dist = _pushLocal.length();
+          if (dist < 1e-6) continue;
+          const amount = radiusLocal - dist;
+          if (amount <= 0) continue;
+          _pushLocal.multiplyScalar(amount / dist);
+        } else {
+          _pushLocal.copy(_normal).multiplyScalar(radiusLocal - signed);
+        }
+
+        // Convert the local correction to world space and slide horizontally.
+        _worldSphere.set(camera.position.x, y, camera.position.z);
+        _pushWorld.copy(_localSphere).add(_pushLocal).applyMatrix4(c.matrix);
+        camera.position.x += _pushWorld.x - _worldSphere.x;
+        camera.position.z += _pushWorld.z - _worldSphere.z;
       }
-      const d = Math.sqrt(d2);
-      const push = (min - d) / d;
-      camera.position.x += dx * push;
-      camera.position.z += dz * push;
     }
   }
 }
