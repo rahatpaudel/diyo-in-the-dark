@@ -48,7 +48,7 @@ const UI = {
 /*  Three.js scene objects                                            */
 /* ------------------------------------------------------------------ */
 let scene, camera, renderer, clock;
-let light, house, flame;
+let light, house, flame, handFill, handFlame;
 let environment = null;
 let colliders = [];
 let ground = null;
@@ -139,11 +139,26 @@ function init() {
   light.castShadow = true;
   light.shadow.mapSize.width = 1024;
   light.shadow.mapSize.height = 1024;
-  // Slightly right and below eye level, like a lamp held in the hand.
-  light.position.set(0.3, -0.3, -0.4);
-  light.target.position.set(0.3, -0.7, -6);
+  // Centered below eye level so the lit pool sits in the middle of the view
+  // rather than being pushed to the right by the hand pose.
+  light.position.set(0, -0.3, -0.4);
+  light.target.position.set(0, -0.7, -6);
   camera.add(light);
   camera.add(light.target);
+
+  // HUD-only fill for the hands. The world lights stay off the hand layer so
+  // the close-up hand is never blown out by the flame's world lighting.
+  handFill = new THREE.PointLight(0xffb060, 3.0, 2.0, 2);
+  handFill.position.set(0.3, 0.2, -0.1);
+  handFill.layers.set(1);
+  camera.add(handFill);
+
+  // A faint copy of the diya light on the HUD layer. It is driven from the
+  // real flame light below, so the hand still catches a little warm light
+  // from the flame itself without the full world intensity.
+  handFlame = new THREE.PointLight(0xff9a3c, 0, 2.0, 2);
+  handFlame.layers.set(1);
+  camera.add(handFlame);
 
   // The visible flame in the player's hand. Stays glued to the bottom-right
   // of the view; the real diya/hand model can replace it later.
@@ -233,19 +248,17 @@ function loadWorld() {
         if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.intro = intro;
 
         // Hands are HUD elements: render them on the overlay layer so world
-        // geometry can never occlude them. Lights keep layer 0 as well.
+        // geometry can never occlude them. Their fill light is the only light
+        // on that layer; the world lights stay off it.
         intro.leftHand.traverse((o) => o.layers.set(1));
         intro.rightHand.traverse((o) => o.layers.set(1));
-        scene.traverse((o) => {
-          if (o.isLight) o.layers.enable(1);
-        });
       }
 
       // If the hand rig is unavailable the game still works: skip the
       // ceremony and show the standalone flame in the bottom-right.
       if (!intro) {
         flame.setVisible(true);
-        light.intensity = 40;
+        light.intensity = 44;
       }
 
       // Make sure at least one frame with the finished world has been drawn
@@ -260,7 +273,7 @@ function loadWorld() {
     .catch((err) => {
       console.error('[world] environment failed to load:', err);
       flame.setVisible(true);
-      light.intensity = 40;
+      light.intensity = 44;
       if (loader) loader.ready();
     });
 }
@@ -711,7 +724,7 @@ function updatePlayer(dt) {
   }
 
   // The spotlight and the visible flame share one breathing rhythm.
-  light.intensity = 40 * flame.flicker;
+  light.intensity = 44 * flame.flicker;
 
   checkInteractions();
 }
@@ -935,9 +948,31 @@ function animate() {
     flame.uniforms.uIntensity.value *= intro.flameBoost;
   }
 
+  // Keep the ceremony's pre-ignition shot dark: the hand fill only comes up
+  // once the match actually catches.
+  if (handFill) {
+    const target = state.cinematic
+      ? (intro && intro.lit ? 3.0 : 0.15)
+      : (state.playing ? 3.0 : 0);
+    handFill.intensity +=
+      (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
+  }
+
   // Subtle sway/bob on the resting hand, and the flame follows its wick.
   if (handBaseReady && !state.cinematic) {
     updateHandBob(rawDelta, { localX, localZ, yawDelta, pitchDelta });
+  }
+
+  // Let the HUD hand catch a fraction of the real flame light. The flame's
+  // full point light stays on the world layer, so this is only a soft warm
+  // wash and never the blown-out white it used to be.
+  if (handFlame) {
+    if (intro) {
+      handFlame.position.copy(intro.handLight.position);
+      handFlame.intensity = intro.handLight.intensity * 0.22;
+    } else {
+      handFlame.intensity = 0;
+    }
   }
 
   // Remember the look angles for the next frame: mousemove fires between
@@ -956,6 +991,7 @@ try {
   window.__DIYO_DEBUG.scene = scene;
   window.__DIYO_DEBUG.renderer = renderer;
   window.__DIYO_DEBUG.flame = flame;
+  window.__DIYO_DEBUG.handFill = handFill;
   window.__DIYO_DEBUG.toggleSpectator = toggleSpectator;
   window.__DIYO_READY = true;
 } catch (err) {

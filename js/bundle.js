@@ -29689,7 +29689,7 @@
     left.visible = false;
     left.scale.setScalar(STRIKE_SCALE);
     camera2.add(left);
-    const handLight = new PointLight(16751164, 0, 3.2, 2);
+    const handLight = new PointLight(16751164, 0, 3.8, 2);
     handLight.position.copy(wickLocal).add(new Vector3(0, 0.1, 0));
     camera2.add(handLight);
     flame2.setVisible(false);
@@ -29890,8 +29890,8 @@
       flame2.setBrightness(FLAME_DIYA_GLOW);
       handLight.position.copy(wickLocal);
       handLight.position.y += 0.08;
-      handLight.intensity = 3.2;
-      spot.intensity = 40;
+      handLight.intensity = 4.6;
+      spot.intensity = 44;
       flare = 1;
       setView2(0, 0);
       if (onDone)
@@ -30107,8 +30107,8 @@
           flame2.setWickPosition(x, y, z, FLAME_MATCH_SCALE);
           flame2.setBrightness(lerp2(1, FLAME_DIYA_GLOW, e));
           handLight.position.set(x, y + 0.08, z);
-          handLight.intensity = lerp2(3, 4.2, e);
-          spot.intensity = lerp2(16, 40, e);
+          handLight.intensity = lerp2(3, 4.6, e);
+          spot.intensity = lerp2(16, 44, e);
         } else {
           flame2.setWickPosition(
             wickNow.x,
@@ -30119,8 +30119,8 @@
           flame2.setBrightness(FLAME_DIYA_GLOW);
           handLight.position.copy(wickNow);
           handLight.position.y += 0.08;
-          handLight.intensity = 4.2;
-          spot.intensity = 40;
+          handLight.intensity = 4.6;
+          spot.intensity = 44;
         }
         flare += (1 - flare) * (1 - Math.exp(-4.5 * d));
       } else {
@@ -30210,6 +30210,8 @@
   var light;
   var house;
   var flame;
+  var handFill;
+  var handFlame;
   var environment = null;
   var colliders = [];
   var ground = null;
@@ -30263,10 +30265,17 @@
     light.castShadow = true;
     light.shadow.mapSize.width = 1024;
     light.shadow.mapSize.height = 1024;
-    light.position.set(0.3, -0.3, -0.4);
-    light.target.position.set(0.3, -0.7, -6);
+    light.position.set(0, -0.3, -0.4);
+    light.target.position.set(0, -0.7, -6);
     camera.add(light);
     camera.add(light.target);
+    handFill = new PointLight(16756832, 3, 2, 2);
+    handFill.position.set(0.3, 0.2, -0.1);
+    handFill.layers.set(1);
+    camera.add(handFill);
+    handFlame = new PointLight(16751164, 0, 2, 2);
+    handFlame.layers.set(1);
+    camera.add(handFlame);
     flame = createFlame(camera);
     flame.mesh.layers.set(1);
     buildGround();
@@ -30327,14 +30336,10 @@
           window.__DIYO_DEBUG.intro = intro;
         intro.leftHand.traverse((o) => o.layers.set(1));
         intro.rightHand.traverse((o) => o.layers.set(1));
-        scene.traverse((o) => {
-          if (o.isLight)
-            o.layers.enable(1);
-        });
       }
       if (!intro) {
         flame.setVisible(true);
-        light.intensity = 40;
+        light.intensity = 44;
       }
       requestAnimationFrame(() => {
         renderFrame();
@@ -30346,7 +30351,7 @@
     }).catch((err) => {
       console.error("[world] environment failed to load:", err);
       flame.setVisible(true);
-      light.intensity = 40;
+      light.intensity = 44;
       if (loader)
         loader.ready();
     });
@@ -30670,7 +30675,7 @@
         endGame();
       }
     }
-    light.intensity = 40 * flame.flicker;
+    light.intensity = 44 * flame.flicker;
     checkInteractions();
   }
   function checkInteractions() {
@@ -30834,8 +30839,20 @@
     if (intro && state.cinematic) {
       flame.uniforms.uIntensity.value *= intro.flameBoost;
     }
+    if (handFill) {
+      const target = state.cinematic ? intro && intro.lit ? 3 : 0.15 : state.playing ? 3 : 0;
+      handFill.intensity += (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
+    }
     if (handBaseReady && !state.cinematic) {
       updateHandBob(rawDelta, { localX, localZ, yawDelta, pitchDelta });
+    }
+    if (handFlame) {
+      if (intro) {
+        handFlame.position.copy(intro.handLight.position);
+        handFlame.intensity = intro.handLight.intensity * 0.22;
+      } else {
+        handFlame.intensity = 0;
+      }
     }
     _prevYaw = state.yaw;
     _prevPitch = state.pitch;
@@ -30848,6 +30865,7 @@
     window.__DIYO_DEBUG.scene = scene;
     window.__DIYO_DEBUG.renderer = renderer;
     window.__DIYO_DEBUG.flame = flame;
+    window.__DIYO_DEBUG.handFill = handFill;
     window.__DIYO_DEBUG.toggleSpectator = toggleSpectator;
     window.__DIYO_READY = true;
   } catch (err) {

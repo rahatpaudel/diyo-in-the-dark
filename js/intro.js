@@ -363,7 +363,7 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
   // A small warm point light, motivated by the flame, lights the hands and
   // the near side of the rock. It follows the flame during the ceremony and
   // remains at the diya wick for gameplay.
-  const handLight = new THREE.PointLight(0xff9a3c, 0, 3.2, 2);
+  const handLight = new THREE.PointLight(0xff9a3c, 0, 3.8, 2);
   handLight.position.copy(wickLocal).add(new THREE.Vector3(0, 0.1, 0));
   camera.add(handLight);
 
@@ -608,8 +608,8 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     flame.setBrightness(FLAME_DIYA_GLOW);
     handLight.position.copy(wickLocal);
     handLight.position.y += 0.08;
-    handLight.intensity = 3.2;
-    spot.intensity = 40;
+    handLight.intensity = 4.6;
+    spot.intensity = 44;
     flare = 1;
     setView(0, 0);
     if (onDone) onDone();
@@ -875,8 +875,8 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
         flame.setWickPosition(x, y, z, FLAME_MATCH_SCALE);
         flame.setBrightness(lerp(1, FLAME_DIYA_GLOW, e));
         handLight.position.set(x, y + 0.08, z);
-        handLight.intensity = lerp(3.0, 4.2, e);
-        spot.intensity = lerp(16, 40, e);
+        handLight.intensity = lerp(3.0, 4.6, e);
+        spot.intensity = lerp(16, 44, e);
       } else {
         // The right hand may still be settling back; the flame rides the wick.
         flame.setWickPosition(
@@ -888,8 +888,8 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
         flame.setBrightness(FLAME_DIYA_GLOW);
         handLight.position.copy(wickNow);
         handLight.position.y += 0.08;
-        handLight.intensity = 4.2;
-        spot.intensity = 40;
+        handLight.intensity = 4.6;
+        spot.intensity = 44;
       }
 
       // Brief, tasteful flare when the match catches. Main applies this after
