@@ -24911,7 +24911,7 @@
 
   uniform float uTime;
   uniform float uSpeed;
-  uniform float uDepth;
+  uniform float uFlutter;
   uniform float uIntensity;
   uniform vec2  uLean;
   uniform float uSeed;
@@ -25004,7 +25004,7 @@
   }
 
   void main() {
-    float t = uTime * (1.0 + uSpeed * 0.06) + uSeed;
+    float t = uTime * (1.0 + uSpeed * 0.06 + uFlutter * 0.55) + uSeed;
 
     // Padded volume coordinates: x in [-0.45, 0.45], y in [-0.46, 1.29].
     float x = (vUv.x - 0.5) * 0.9;
@@ -25017,9 +25017,10 @@
 
     // Spine: a slow living bend plus the player's motion lean. The lean is
     // amplified up the flame so rotations tilt the tip, not the base.
-    float spine = uLean.x * H * H * 1.9 + uDepth * 0.030 * H;
+    float spine = uLean.x * H * H * 1.9;
     spine += sin(t * 1.15 + H * 1.6) * 0.022 * H;
     spine += sin(t * 2.45 - H * 2.6 + 1.7) * 0.008 * H;
+    spine += sin(t * 5.2 + H * 3.6 + 0.7) * 0.011 * uFlutter * H;
 
     // Teardrop half-width: pinched at the wick, fullest just above it, then
     // closing in a rounded point instead of a needle.
@@ -25056,7 +25057,7 @@
 
       // The noise pushes the silhouette itself, so the outline licks and
       // curls instead of staying a perfect teardrop.
-      float rmod = 0.86 + 0.34 * (n - 0.5) * 2.0;
+      float rmod = 0.86 + (0.34 + 0.16 * uFlutter) * (n - 0.5) * 2.0;
       float rad = sqrt(rx * rx + rz * rz) / rmod;
 
       float env = 1.0 - smoothstep(0.36, 1.05, rad);
@@ -25091,7 +25092,7 @@
     const uniforms = {
       uTime: { value: 0 },
       uSpeed: { value: 0 },
-      uDepth: { value: 0 },
+      uFlutter: { value: 0 },
       uIntensity: { value: 1 },
       uLean: { value: new Vector2() },
       uSeed: { value: 3.7 }
@@ -25106,7 +25107,7 @@
       side: DoubleSide,
       toneMapped: false
     });
-    const geometry = new PlaneGeometry(0.26, 0.36);
+    const geometry = new PlaneGeometry(0.4, 0.36);
     const mesh = new Mesh(geometry, material);
     mesh.name = "DiyoFlame";
     mesh.position.set(0.6, -0.4, -1);
@@ -25119,6 +25120,8 @@
     const lastMotion = { localX: 0, localY: 0, localZ: 0, yawDelta: 0, pitchDelta: 0, speed: 0 };
     let time = 0;
     let flicker = 1;
+    let currentScale = 1;
+    let catchTime = 10;
     function update(dt, motion) {
       const elapsed = clamp2(dt || 0, 0, 0.25);
       time += elapsed;
@@ -25131,8 +25134,8 @@
       lastMotion.pitchDelta = m.pitchDelta || 0;
       lastMotion.speed = m.speed || 0;
       target.set(
-        clamp2(-lastMotion.localX * 6e-3 + lastMotion.yawDelta * 0.35, -0.09, 0.09),
-        clamp2(-lastMotion.localY * 6e-3 - lastMotion.pitchDelta * 0.22, -0.075, 0.075)
+        clamp2(-lastMotion.localX * 0.03 + lastMotion.yawDelta * 2, -0.15, 0.15),
+        clamp2(-lastMotion.localY * 4e-3 - lastMotion.pitchDelta * 0.45, -0.09, 0.09)
       );
       const steps = Math.min(8, Math.max(1, Math.ceil(elapsed * 60)));
       const step = elapsed / steps;
@@ -25145,16 +25148,23 @@
       uniforms.uLean.value.copy(lean);
       const speed = clamp2(lastMotion.speed / 3, 0, 1);
       uniforms.uSpeed.value += (speed - uniforms.uSpeed.value) * (1 - Math.exp(-4 * elapsed));
-      const depth = clamp2(-lastMotion.localZ / 3, -1, 1);
-      uniforms.uDepth.value += (depth - uniforms.uDepth.value) * (1 - Math.exp(-5 * elapsed));
-      flicker = 0.98 + 0.011 * Math.sin(time * 2.7) + 6e-3 * Math.sin(time * 5.9 + 1.1) + 4e-3 * Math.sin(time * 0.9 + 0.4);
+      catchTime += elapsed;
+      const matchness = clamp2((1 - currentScale) / 0.5, 0, 1);
+      const catchGlow = catchTime < 0.9 ? Math.exp(-catchTime * 5.5) : 0;
+      const flutterTarget = clamp2(matchness * 0.8 + catchGlow, 0, 1.3);
+      uniforms.uFlutter.value += (flutterTarget - uniforms.uFlutter.value) * (1 - Math.exp(-11 * elapsed));
+      flicker = 0.98 + 0.011 * Math.sin(time * 2.7) + 6e-3 * Math.sin(time * 5.9 + 1.1) + 4e-3 * Math.sin(time * 0.9 + 0.4) + matchness * (0.028 * Math.sin(time * 21.3 + 0.4) + 0.017 * Math.sin(time * 33.7 + 2)) + catchGlow * (0.18 * Math.sin(time * 61) + 0.1 * Math.sin(time * 97 + 1.3));
       uniforms.uIntensity.value = flicker * 0.995;
+    }
+    function ignite() {
+      catchTime = 0;
     }
     function setVisible(v) {
       mesh.visible = v;
     }
     function setWickPosition(x, y, z, scale = 1) {
       const s = scale > 0 ? scale : 1;
+      currentScale = s;
       mesh.scale.setScalar(s);
       mesh.position.set(x, y + 0.0864 * s, z);
     }
@@ -25167,6 +25177,7 @@
       mesh,
       uniforms,
       update,
+      ignite,
       setVisible,
       setWickPosition,
       dispose,
@@ -25580,6 +25591,8 @@
       lit = true;
       flare = 2.1;
       flame2.setVisible(true);
+      if (flame2.ignite)
+        flame2.ignite();
     }
     function dropLeft() {
       if (leftDropped)

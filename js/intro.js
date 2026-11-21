@@ -560,6 +560,7 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     lit = true;
     flare = 2.1;
     flame.setVisible(true);
+    if (flame.ignite) flame.ignite();
   }
 
   function dropLeft() {
