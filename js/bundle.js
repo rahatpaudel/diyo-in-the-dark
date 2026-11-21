@@ -25778,6 +25778,20 @@
     minZ -= 4;
     maxZ += 4;
     const cell = 0.28;
+    const cells = /* @__PURE__ */ new Map();
+    const reach = PATH_HALF_WIDTH + 1.2;
+    const rCells = Math.ceil(reach / cell);
+    for (const s of PATH_SAMPLES) {
+      const cx = Math.floor(s.x / cell);
+      const cz = Math.floor(s.z / cell);
+      for (let ix = cx - rCells; ix <= cx + rCells; ix++) {
+        for (let iz = cz - rCells; iz <= cz + rCells; iz++) {
+          const key = ix + "," + iz;
+          if (!cells.has(key))
+            cells.set(key, [ix, iz]);
+        }
+      }
+    }
     const pPositions = [];
     const pUvs = [];
     const pColors = [];
@@ -25785,36 +25799,36 @@
     const cEdge = new Color(7035458);
     const cInner = new Color(16777215);
     const pc = new Color();
-    for (let z = minZ; z <= maxZ; z += cell) {
-      for (let x = minX; x <= maxX; x += cell) {
-        const cx = x + cell * 0.5;
-        const cz = z + cell * 0.5;
-        const near = nearestPath(cx, cz, 4);
-        if (!near)
-          continue;
-        const width = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
-        if (near.dist > width)
-          continue;
-        const t = clamp01((near.dist - (width - 0.35)) / 0.35);
-        pc.copy(cEdge).lerp(cInner, 1 - t);
-        const base = pPositions.length / 3;
-        const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
-        for (const [ox, oz] of corners) {
-          const px2 = x + ox;
-          const pz2 = z + oz;
-          pPositions.push(px2, heightAt(px2, pz2) + 0.03, pz2);
-          pUvs.push(px2 / 3, pz2 / 3);
-          pColors.push(pc.r, pc.g, pc.b);
-        }
-        pIndices.push(base, base + 2, base + 1);
-        pIndices.push(base + 1, base + 2, base + 3);
+    for (const [ix, iz] of cells.values()) {
+      const x = ix * cell;
+      const z = iz * cell;
+      const cx = x + cell * 0.5;
+      const cz = z + cell * 0.5;
+      const near = nearestPath(cx, cz, reach + 0.5);
+      if (!near)
+        continue;
+      const width = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
+      if (near.dist > width)
+        continue;
+      const t = clamp01((near.dist - (width - 0.35)) / 0.35);
+      pc.copy(cEdge).lerp(cInner, 1 - t);
+      const base = pPositions.length / 3;
+      const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
+      for (const [ox, oz] of corners) {
+        const px2 = x + ox;
+        const pz2 = z + oz;
+        pPositions.push(px2, heightAt(px2, pz2) + 0.03, pz2);
+        pUvs.push(px2 / 3, pz2 / 3);
+        pColors.push(pc.r, pc.g, pc.b);
       }
+      pIndices.push(base, base + 2, base + 1);
+      pIndices.push(base + 1, base + 2, base + 3);
     }
     const pathGeo = new BufferGeometry();
-    pathGeo.setAttribute("position", new Float32BufferAttribute(positions, 3));
-    pathGeo.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-    pathGeo.setAttribute("color", new Float32BufferAttribute(colors, 3));
-    pathGeo.setIndex(indices);
+    pathGeo.setAttribute("position", new Float32BufferAttribute(pPositions, 3));
+    pathGeo.setAttribute("uv", new Float32BufferAttribute(pUvs, 2));
+    pathGeo.setAttribute("color", new Float32BufferAttribute(pColors, 3));
+    pathGeo.setIndex(pIndices);
     pathGeo.computeVertexNormals();
     const pathMaterial = new MeshStandardMaterial({
       map: textures.pathMap,

@@ -527,7 +527,23 @@ export function buildTerrain(scene, renderer) {
   minZ -= 4;
   maxZ += 4;
 
+  // Stamp cells only around the actual path samples instead of scanning the
+  // whole bounding box, and key them on integer cells so the quads line up.
   const cell = 0.28;
+  const cells = new Map();
+  const reach = PATH_HALF_WIDTH + 1.2;
+  const rCells = Math.ceil(reach / cell);
+  for (const s of PATH_SAMPLES) {
+    const cx = Math.floor(s.x / cell);
+    const cz = Math.floor(s.z / cell);
+    for (let ix = cx - rCells; ix <= cx + rCells; ix++) {
+      for (let iz = cz - rCells; iz <= cz + rCells; iz++) {
+        const key = ix + ',' + iz;
+        if (!cells.has(key)) cells.set(key, [ix, iz]);
+      }
+    }
+  }
+
   const pPositions = [];
   const pUvs = [];
   const pColors = [];
@@ -536,38 +552,38 @@ export function buildTerrain(scene, renderer) {
   const cInner = new THREE.Color(0xffffff);
   const pc = new THREE.Color();
 
-  for (let z = minZ; z <= maxZ; z += cell) {
-    for (let x = minX; x <= maxX; x += cell) {
-      const cx = x + cell * 0.5;
-      const cz = z + cell * 0.5;
-      const near = nearestPath(cx, cz, 4);
-      if (!near) continue;
-      const width =
-        PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
-      if (near.dist > width) continue;
+  for (const [ix, iz] of cells.values()) {
+    const x = ix * cell;
+    const z = iz * cell;
+    const cx = x + cell * 0.5;
+    const cz = z + cell * 0.5;
+    const near = nearestPath(cx, cz, reach + 0.5);
+    if (!near) continue;
+    const width =
+      PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
+    if (near.dist > width) continue;
 
-      const t = clamp01((near.dist - (width - 0.35)) / 0.35);
-      pc.copy(cEdge).lerp(cInner, 1 - t);
+    const t = clamp01((near.dist - (width - 0.35)) / 0.35);
+    pc.copy(cEdge).lerp(cInner, 1 - t);
 
-      const base = pPositions.length / 3;
-      const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
-      for (const [ox, oz] of corners) {
-        const px = x + ox;
-        const pz = z + oz;
-        pPositions.push(px, heightAt(px, pz) + 0.03, pz);
-        pUvs.push(px / 3, pz / 3);
-        pColors.push(pc.r, pc.g, pc.b);
-      }
-      pIndices.push(base, base + 2, base + 1);
-      pIndices.push(base + 1, base + 2, base + 3);
+    const base = pPositions.length / 3;
+    const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
+    for (const [ox, oz] of corners) {
+      const px = x + ox;
+      const pz = z + oz;
+      pPositions.push(px, heightAt(px, pz) + 0.03, pz);
+      pUvs.push(px / 3, pz / 3);
+      pColors.push(pc.r, pc.g, pc.b);
     }
+    pIndices.push(base, base + 2, base + 1);
+    pIndices.push(base + 1, base + 2, base + 3);
   }
 
   const pathGeo = new THREE.BufferGeometry();
-  pathGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  pathGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  pathGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  pathGeo.setIndex(indices);
+  pathGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPositions, 3));
+  pathGeo.setAttribute('uv', new THREE.Float32BufferAttribute(pUvs, 2));
+  pathGeo.setAttribute('color', new THREE.Float32BufferAttribute(pColors, 3));
+  pathGeo.setIndex(pIndices);
   pathGeo.computeVertexNormals();
 
   const pathMaterial = new THREE.MeshStandardMaterial({
