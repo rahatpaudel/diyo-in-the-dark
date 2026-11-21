@@ -21,155 +21,145 @@ const CELL = 4;
 /*  Decisions + branches                                              */
 /* ------------------------------------------------------------------ */
 export const PATH_DECISIONS = [
-  { id: 'q1', x: 1, z: -12, riddle: 1, choices: 2 },
-  { id: 'q2', x: 14, z: -10, riddle: 2, choices: 2 },
-  { id: 'q3', x: 12, z: 6, riddle: 3, choices: 2 },
-  { id: 'q4', x: 24, z: 4, riddle: 4, choices: 3 },
-  { id: 'q5', x: 24, z: 17, riddle: 5, choices: 3 }
+  { id: 'q1', x: 4.5, z: 4.5, riddle: 1, choices: 2 },
+  { id: 'q2', x: 8.8, z: 9.2, riddle: 2, choices: 2 },
+  { id: 'q3', x: 13.5, z: 12.8, riddle: 3, choices: 2 },
+  { id: 'q4', x: 18, z: 17.2, riddle: 4, choices: 3 },
+  { id: 'q5', x: 22, z: 21, riddle: 5, choices: 3 }
 ];
 export const HOUSE_POINT = { x: 25, z: 25 };
 
 const BRANCHES = [
-  // Approach from the spawn, curving gently around the strike rock.
+  // The trail is a mostly straight diagonal from spawn to the house, with
+  // just enough curve at each decision to hide the dead ends.
   {
     id: 'start',
     kind: 'correct',
     points: [
       [0, 0],
-      [1.2, -3.5],
-      [1.4, -7.5],
-      [1, -12]
+      [1.5, 1.5],
+      [3, 3],
+      [4.5, 4.5]
     ]
   },
-
-  // Q1: mostly straight east, decoy turns west then south.
   {
     id: 'q1-correct',
     kind: 'correct',
     points: [
-      [1, -12],
-      [5, -13.5],
-      [10, -12.5],
-      [14, -10]
+      [4.5, 4.5],
+      [6.5, 6.2],
+      [7.8, 8.0],
+      [8.8, 9.2]
     ]
   },
   {
     id: 'q1-decoy',
     kind: 'decoy',
     points: [
-      [1, -12],
-      [-1, -14],
-      [-6, -14.5],
-      [-9, -18],
-      [-10, -22]
+      [4.5, 4.5],
+      [2.5, 6.5],
+      [1.0, 9.0],
+      [-0.5, 12.0]
     ]
   },
-
-  // Q2: a soft S north; decoy peels south-east.
   {
     id: 'q2-correct',
     kind: 'correct',
     points: [
-      [14, -10],
-      [15.5, -5],
-      [14.5, 0],
-      [12, 6]
+      [8.8, 9.2],
+      [10.5, 10.2],
+      [12.0, 11.5],
+      [13.5, 12.8]
     ]
   },
   {
     id: 'q2-decoy',
     kind: 'decoy',
     points: [
-      [14, -10],
-      [18, -13],
-      [22, -17],
-      [24, -22]
+      [8.8, 9.2],
+      [11.5, 7.5],
+      [14.0, 5.5],
+      [16.0, 3.5]
     ]
   },
-
-  // Q3: mostly straight east; decoy curves west.
   {
     id: 'q3-correct',
     kind: 'correct',
     points: [
-      [12, 6],
-      [16, 7],
-      [20, 6.5],
-      [24, 4]
+      [13.5, 12.8],
+      [15.0, 14.3],
+      [16.5, 15.8],
+      [18.0, 17.2]
     ]
   },
   {
     id: 'q3-decoy',
     kind: 'decoy',
     points: [
-      [12, 6],
-      [9, 9],
-      [5, 12],
-      [0, 17]
+      [13.5, 12.8],
+      [11.0, 14.5],
+      [9.0, 16.5],
+      [7.5, 19.0]
     ]
   },
-
-  // Q4: three choices. Correct north; decoys peel east and south.
   {
     id: 'q4-correct',
     kind: 'correct',
     points: [
-      [24, 4],
-      [25, 8],
-      [24.5, 13],
-      [24, 17]
+      [18.0, 17.2],
+      [19.5, 18.5],
+      [21.0, 19.8],
+      [22.0, 21.0]
     ]
   },
   {
     id: 'q4-east',
     kind: 'decoy',
     points: [
-      [24, 4],
-      [28, 6],
-      [32, 8],
-      [36, 12]
+      [18.0, 17.2],
+      [21.0, 16.0],
+      [24.0, 14.5],
+      [26.5, 13.0]
     ]
   },
   {
-    id: 'q4-south',
+    id: 'q4-west',
     kind: 'decoy',
     points: [
-      [24, 4],
-      [26, 0],
-      [27.5, -4],
-      [29, -7]
+      [18.0, 17.2],
+      [15.5, 19.0],
+      [13.0, 21.0],
+      [11.5, 23.5]
     ]
   },
-
-  // Q5: three choices. Correct runs to the house; decoys flank it.
   {
     id: 'q5-correct',
     kind: 'correct',
     points: [
-      [24, 17],
-      [24.5, 20],
-      [25, 23],
-      [25, 25]
+      [22.0, 21.0],
+      [23.0, 22.5],
+      [24.0, 23.5],
+      [25.0, 25.0]
     ]
   },
   {
     id: 'q5-west',
     kind: 'decoy',
     points: [
-      [24, 17],
-      [21, 19],
-      [16, 21],
-      [13, 26]
+      [22.0, 21.0],
+      [19.0, 22.5],
+      [16.0, 24.0],
+      [14.0, 26.5]
     ]
   },
   {
     id: 'q5-east',
     kind: 'decoy',
     points: [
-      [24, 17],
-      [27, 19],
-      [31, 21],
-      [35, 24]
+      [22.0, 21.0],
+      [25.0, 22.0],
+      [28.0, 23.0],
+      [30.0, 25.0]
     ]
   }
 ];
@@ -354,6 +344,57 @@ for (const branch of PATH_BRANCHES) {
         nx,
         nz,
         hash(i, side, 733) * Math.PI * 2,
+        scale
+      );
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inner corridor wall                                                */
+/* ------------------------------------------------------------------ */
+const INNER_TREES = [
+  { name: 'Tree_Small_1', radius: 2.04 },
+  { name: 'Tree_Bare_1', radius: 2.02 },
+  { name: 'Tree_Small_2', radius: 3.41 },
+  { name: 'Tree_Bare_2', radius: 3.41 }
+];
+
+for (const branch of PATH_BRANCHES) {
+  const isDecoy = branch.kind === 'decoy';
+  const step = Math.max(1, Math.round(3.4 / SAMPLE_STEP));
+
+  for (let i = step; i < branch.samples.length - 2; i += step) {
+    const s = branch.samples[i];
+    const prev = branch.samples[i - 1];
+    const next = branch.samples[i + 1];
+    let dx = next.x - prev.x;
+    let dz = next.z - prev.z;
+    const len = Math.hypot(dx, dz) || 1;
+    dx /= len;
+    dz /= len;
+
+    if (Math.hypot(s.x, s.z) < 5) continue;
+    if (Math.hypot(s.x - HOUSE_POINT.x, s.z - HOUSE_POINT.z) < 6) continue;
+    if (isDecoy && i > branch.samples.length - 6) continue;
+    if (nearestDecision(s.x, s.z, 4.5)) continue;
+
+    for (const side of [-1, 1]) {
+      if (hash(i, side, 181) > 0.82) continue;
+      const variant = INNER_TREES[(i + (side > 0 ? 1 : 0)) % INNER_TREES.length];
+      const scale = 0.62 + hash(i, side, 419) * 0.16;
+      const offset = variant.radius * scale + PATH_HALF_WIDTH + 0.65;
+      const nx = s.x - dz * side * offset;
+      const nz = s.z + dx * side * offset;
+
+      const other = nearestPath(nx, nz, offset + 3);
+      if (other && other.dist < offset - 0.25) continue;
+
+      addExtra(
+        variant.name,
+        nx,
+        nz,
+        hash(i, side, 887) * Math.PI * 2,
         scale
       );
     }

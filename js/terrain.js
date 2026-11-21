@@ -236,17 +236,19 @@ function createGroundTextures(renderer) {
   actx.putImageData(aimg, 0, 0);
   nctx.putImageData(nimg, 0, 0);
 
-  // World-space path mask for a faint warm trail that survives the darkness.
+  // Path alpha mask, kept separate from the ground tiles so the edges are
+  // crisp instead of following the terrain vertex grid.
+  const maskSize = 2048;
   const pathCanvas = document.createElement('canvas');
-  pathCanvas.width = pathCanvas.height = size;
+  pathCanvas.width = pathCanvas.height = maskSize;
   const pctx = pathCanvas.getContext('2d');
-  pctx.clearRect(0, 0, size, size);
+  pctx.clearRect(0, 0, maskSize, maskSize);
   pctx.lineCap = 'round';
   pctx.lineJoin = 'round';
 
-  const px = (x) => ((x + HALF) / SIZE) * size;
-  const py = (z) => ((z + HALF) / SIZE) * size;
-  const coreWidth = ((PATH_HALF_WIDTH * 2) / SIZE) * size;
+  const px = (x) => ((x + HALF) / SIZE) * maskSize;
+  const py = (z) => ((z + HALF) / SIZE) * maskSize;
+  const coreWidth = ((PATH_HALF_WIDTH * 2) / SIZE) * maskSize;
 
   for (const branch of PATH_BRANCHES) {
     pctx.strokeStyle = 'rgb(48, 48, 48)';
@@ -268,39 +270,81 @@ function createGroundTextures(renderer) {
     pctx.stroke();
   }
 
-  // Widen the choice clearings slightly; the crossing branch strokes already
-  // brighten the fork, so a solid soft disc is enough.
   for (const d of PATH_DECISIONS) {
     pctx.fillStyle = 'rgb(44, 44, 44)';
     pctx.beginPath();
-    pctx.arc(px(d.x), py(d.z), (3.0 / SIZE) * size, 0, Math.PI * 2);
+    pctx.arc(px(d.x), py(d.z), (3.0 / SIZE) * maskSize, 0, Math.PI * 2);
     pctx.fill();
   }
 
-  // Build a textured warm emissive from the albedo, masked to the path, so
-  // the trail glows without turning into a flat beige strip.
-  const maskData = pctx.getImageData(0, 0, size, size).data;
-  const emissiveCanvas = document.createElement('canvas');
-  emissiveCanvas.width = emissiveCanvas.height = size;
-  const ectx = emissiveCanvas.getContext('2d');
-  const eimg = ectx.createImageData(size, size);
-  for (let i = 0; i < aimg.data.length; i += 4) {
-    const m = maskData[i] / 255;
-    const p = i / 4;
-    const u = (p % size) / size;
-    const v = Math.floor(p / size) / size;
-    const grain = periodicNoise(u * 192, v * 192, 192, 527);
-    const g = 0.70 + grain * 0.60;
-    // Warm dirt base with a little of the surrounding albedo mixed in.
-    const r = (aimg.data[i] * 0.3 + 205 * 0.7) * g;
-    const gg = (aimg.data[i + 1] * 0.3 + 150 * 0.7) * g;
-    const b = (aimg.data[i + 2] * 0.3 + 92 * 0.7) * g;
-    eimg.data[i] = Math.min(255, r * m);
-    eimg.data[i + 1] = Math.min(255, gg * m);
-    eimg.data[i + 2] = Math.min(255, b * m);
-    eimg.data[i + 3] = 255;
+  // Dedicated warm dirt tile for the path overlay.
+  const dirtSize = 512;
+  const dAlbedoCanvas = document.createElement('canvas');
+  dAlbedoCanvas.width = dAlbedoCanvas.height = dirtSize;
+  const dNormalCanvas = document.createElement('canvas');
+  dNormalCanvas.width = dNormalCanvas.height = dirtSize;
+  const dactx = dAlbedoCanvas.getContext('2d');
+  const dnctx = dNormalCanvas.getContext('2d');
+  const daimg = dactx.createImageData(dirtSize, dirtSize);
+  const dnimg = dnctx.createImageData(dirtSize, dirtSize);
+  const dHeights = new Float32Array(dirtSize * dirtSize);
+
+  const dDark = [56, 39, 26];
+  const dSoil = [92, 67, 44];
+  const dLight = [139, 105, 70];
+
+  for (let y = 0; y < dirtSize; y++) {
+    for (let x = 0; x < dirtSize; x++) {
+      const u = x / dirtSize;
+      const v = y / dirtSize;
+      const n1 = periodicFbm(u, v, 8, 5, 3001);
+      const n2 = periodicFbm(u, v, 16, 4, 3011);
+      const n3 = periodicFbm(u, v, 64, 3, 3023);
+
+      const t = smooth(clamp01((n1 - 0.3) / 0.38));
+      let r = mix(dDark[0], dSoil[0], t);
+      let g = mix(dDark[1], dSoil[1], t);
+      let b = mix(dDark[2], dSoil[2], t);
+
+      const stone = n3 > 0.86 ? (n3 - 0.86) * 150 : 0;
+      const grain = (n2 - 0.5) * 16 + (n3 - 0.5) * 20;
+      r = Math.max(0, Math.min(255, r + grain + stone * 0.8));
+      g = Math.max(0, Math.min(255, g + grain + stone * 0.7));
+      b = Math.max(0, Math.min(255, b + grain + stone * 0.55));
+
+      const i = (y * dirtSize + x) * 4;
+      daimg.data[i] = r;
+      daimg.data[i + 1] = g;
+      daimg.data[i + 2] = b;
+      daimg.data[i + 3] = 255;
+
+      dHeights[y * dirtSize + x] =
+        n1 * 0.4 + n2 * 0.35 + n3 * 0.25;
+    }
   }
-  ectx.putImageData(eimg, 0, 0);
+
+  const dwrap = (i) => (i + dirtSize) % dirtSize;
+  const dStrength = 1.2;
+  for (let y = 0; y < dirtSize; y++) {
+    for (let x = 0; x < dirtSize; x++) {
+      const hL = dHeights[y * dirtSize + dwrap(x - 1)];
+      const hR = dHeights[y * dirtSize + dwrap(x + 1)];
+      const hD = dHeights[dwrap(y - 1) * dirtSize + x];
+      const hU = dHeights[dwrap(y + 1) * dirtSize + x];
+      let nx = (hL - hR) * dStrength;
+      let ny = (hD - hU) * dStrength;
+      let nz = 1;
+      const inv = 1 / Math.hypot(nx, ny, nz);
+      nx *= inv; ny *= inv; nz *= inv;
+      const i = (y * dirtSize + x) * 4;
+      dnimg.data[i] = (nx * 0.5 + 0.5) * 255;
+      dnimg.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+      dnimg.data[i + 2] = (nz * 0.5 + 0.5) * 255;
+      dnimg.data[i + 3] = 255;
+    }
+  }
+  dactx.putImageData(daimg, 0, 0);
+  dnctx.putImageData(dnimg, 0, 0);
 
   const maxAniso = renderer && renderer.capabilities
     ? Math.min(8, renderer.capabilities.getMaxAnisotropy())
@@ -320,15 +364,29 @@ function createGroundTextures(renderer) {
   normal.anisotropy = maxAniso;
   normal.needsUpdate = true;
 
-  const emissive = new THREE.CanvasTexture(emissiveCanvas);
-  emissive.colorSpace = THREE.SRGBColorSpace;
-  emissive.flipY = false;
-  emissive.wrapS = emissive.wrapT = THREE.ClampToEdgeWrapping;
-  emissive.repeat.set(1, 1);
-  emissive.anisotropy = maxAniso;
-  emissive.needsUpdate = true;
+  const pathAlpha = new THREE.CanvasTexture(pathCanvas);
+  pathAlpha.colorSpace = THREE.NoColorSpace;
+  pathAlpha.flipY = false;
+  pathAlpha.wrapS = pathAlpha.wrapT = THREE.ClampToEdgeWrapping;
+  pathAlpha.repeat.set(1, 1);
+  pathAlpha.anisotropy = maxAniso;
+  pathAlpha.needsUpdate = true;
 
-  return { albedo, normal, emissive };
+  const pathMap = new THREE.CanvasTexture(dAlbedoCanvas);
+  pathMap.colorSpace = THREE.SRGBColorSpace;
+  pathMap.wrapS = pathMap.wrapT = THREE.RepeatWrapping;
+  pathMap.repeat.set(16, 16);
+  pathMap.anisotropy = maxAniso;
+  pathMap.needsUpdate = true;
+
+  const pathNormal = new THREE.CanvasTexture(dNormalCanvas);
+  pathNormal.colorSpace = THREE.NoColorSpace;
+  pathNormal.wrapS = pathNormal.wrapT = THREE.RepeatWrapping;
+  pathNormal.repeat.set(16, 16);
+  pathNormal.anisotropy = maxAniso;
+  pathNormal.needsUpdate = true;
+
+  return { albedo, normal, pathAlpha, pathMap, pathNormal };
 }
 
 /* ------------------------------------------------------------------ */
@@ -449,9 +507,6 @@ export function buildTerrain(scene, renderer) {
     map: textures.albedo,
     normalMap: textures.normal,
     normalScale: new THREE.Vector2(0.14, 0.14),
-    emissive: new THREE.Color(0xffffff),
-    emissiveMap: textures.emissive,
-    emissiveIntensity: 0.65,
     vertexColors: true,
     roughness: 0.95,
     metalness: 0,
@@ -463,5 +518,31 @@ export function buildTerrain(scene, renderer) {
   mesh.receiveShadow = true;
   mesh.castShadow = false;
   scene.add(mesh);
+
+  // The trail is a lit decal over the terrain, not an emissive smear. It uses
+  // the same geometry and a high-resolution alpha mask, so its edges are crisp
+  // and it takes the diya's spotlight and tree shadows like the ground does.
+  const pathMaterial = new THREE.MeshStandardMaterial({
+    map: textures.pathMap,
+    normalMap: textures.pathNormal,
+    normalScale: new THREE.Vector2(0.22, 0.22),
+    alphaMap: textures.pathAlpha,
+    transparent: true,
+    depthWrite: false,
+    roughness: 0.96,
+    metalness: 0,
+    color: 0xffffff,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
+  });
+  const pathMesh = new THREE.Mesh(geo, pathMaterial);
+  pathMesh.name = 'Path';
+  pathMesh.position.y = 0.012;
+  pathMesh.receiveShadow = true;
+  pathMesh.castShadow = false;
+  pathMesh.renderOrder = 2;
+  scene.add(pathMesh);
+
   return mesh;
 }

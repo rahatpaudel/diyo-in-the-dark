@@ -29143,128 +29143,123 @@
   var SAMPLE_STEP = 0.6;
   var CELL = 4;
   var PATH_DECISIONS = [
-    { id: "q1", x: 1, z: -12, riddle: 1, choices: 2 },
-    { id: "q2", x: 14, z: -10, riddle: 2, choices: 2 },
-    { id: "q3", x: 12, z: 6, riddle: 3, choices: 2 },
-    { id: "q4", x: 24, z: 4, riddle: 4, choices: 3 },
-    { id: "q5", x: 24, z: 17, riddle: 5, choices: 3 }
+    { id: "q1", x: 4.5, z: 4.5, riddle: 1, choices: 2 },
+    { id: "q2", x: 8.8, z: 9.2, riddle: 2, choices: 2 },
+    { id: "q3", x: 13.5, z: 12.8, riddle: 3, choices: 2 },
+    { id: "q4", x: 18, z: 17.2, riddle: 4, choices: 3 },
+    { id: "q5", x: 22, z: 21, riddle: 5, choices: 3 }
   ];
   var HOUSE_POINT = { x: 25, z: 25 };
   var BRANCHES = [
-    // Approach from the spawn, curving gently around the strike rock.
+    // The trail is a mostly straight diagonal from spawn to the house, with
+    // just enough curve at each decision to hide the dead ends.
     {
       id: "start",
       kind: "correct",
       points: [
         [0, 0],
-        [1.2, -3.5],
-        [1.4, -7.5],
-        [1, -12]
+        [1.5, 1.5],
+        [3, 3],
+        [4.5, 4.5]
       ]
     },
-    // Q1: mostly straight east, decoy turns west then south.
     {
       id: "q1-correct",
       kind: "correct",
       points: [
-        [1, -12],
-        [5, -13.5],
-        [10, -12.5],
-        [14, -10]
+        [4.5, 4.5],
+        [6.5, 6.2],
+        [7.8, 8],
+        [8.8, 9.2]
       ]
     },
     {
       id: "q1-decoy",
       kind: "decoy",
       points: [
-        [1, -12],
-        [-1, -14],
-        [-6, -14.5],
-        [-9, -18],
-        [-10, -22]
+        [4.5, 4.5],
+        [2.5, 6.5],
+        [1, 9],
+        [-0.5, 12]
       ]
     },
-    // Q2: a soft S north; decoy peels south-east.
     {
       id: "q2-correct",
       kind: "correct",
       points: [
-        [14, -10],
-        [15.5, -5],
-        [14.5, 0],
-        [12, 6]
+        [8.8, 9.2],
+        [10.5, 10.2],
+        [12, 11.5],
+        [13.5, 12.8]
       ]
     },
     {
       id: "q2-decoy",
       kind: "decoy",
       points: [
-        [14, -10],
-        [18, -13],
-        [22, -17],
-        [24, -22]
+        [8.8, 9.2],
+        [11.5, 7.5],
+        [14, 5.5],
+        [16, 3.5]
       ]
     },
-    // Q3: mostly straight east; decoy curves west.
     {
       id: "q3-correct",
       kind: "correct",
       points: [
-        [12, 6],
-        [16, 7],
-        [20, 6.5],
-        [24, 4]
+        [13.5, 12.8],
+        [15, 14.3],
+        [16.5, 15.8],
+        [18, 17.2]
       ]
     },
     {
       id: "q3-decoy",
       kind: "decoy",
       points: [
-        [12, 6],
-        [9, 9],
-        [5, 12],
-        [0, 17]
+        [13.5, 12.8],
+        [11, 14.5],
+        [9, 16.5],
+        [7.5, 19]
       ]
     },
-    // Q4: three choices. Correct north; decoys peel east and south.
     {
       id: "q4-correct",
       kind: "correct",
       points: [
-        [24, 4],
-        [25, 8],
-        [24.5, 13],
-        [24, 17]
+        [18, 17.2],
+        [19.5, 18.5],
+        [21, 19.8],
+        [22, 21]
       ]
     },
     {
       id: "q4-east",
       kind: "decoy",
       points: [
-        [24, 4],
-        [28, 6],
-        [32, 8],
-        [36, 12]
+        [18, 17.2],
+        [21, 16],
+        [24, 14.5],
+        [26.5, 13]
       ]
     },
     {
-      id: "q4-south",
+      id: "q4-west",
       kind: "decoy",
       points: [
-        [24, 4],
-        [26, 0],
-        [27.5, -4],
-        [29, -7]
+        [18, 17.2],
+        [15.5, 19],
+        [13, 21],
+        [11.5, 23.5]
       ]
     },
-    // Q5: three choices. Correct runs to the house; decoys flank it.
     {
       id: "q5-correct",
       kind: "correct",
       points: [
-        [24, 17],
-        [24.5, 20],
-        [25, 23],
+        [22, 21],
+        [23, 22.5],
+        [24, 23.5],
         [25, 25]
       ]
     },
@@ -29272,20 +29267,20 @@
       id: "q5-west",
       kind: "decoy",
       points: [
-        [24, 17],
-        [21, 19],
-        [16, 21],
-        [13, 26]
+        [22, 21],
+        [19, 22.5],
+        [16, 24],
+        [14, 26.5]
       ]
     },
     {
       id: "q5-east",
       kind: "decoy",
       points: [
-        [24, 17],
-        [27, 19],
-        [31, 21],
-        [35, 24]
+        [22, 21],
+        [25, 22],
+        [28, 23],
+        [30, 25]
       ]
     }
   ];
@@ -29442,6 +29437,53 @@
           nx,
           nz,
           hash(i, side, 733) * Math.PI * 2,
+          scale
+        );
+      }
+    }
+  }
+  var INNER_TREES = [
+    { name: "Tree_Small_1", radius: 2.04 },
+    { name: "Tree_Bare_1", radius: 2.02 },
+    { name: "Tree_Small_2", radius: 3.41 },
+    { name: "Tree_Bare_2", radius: 3.41 }
+  ];
+  for (const branch of PATH_BRANCHES) {
+    const isDecoy = branch.kind === "decoy";
+    const step = Math.max(1, Math.round(3.4 / SAMPLE_STEP));
+    for (let i = step; i < branch.samples.length - 2; i += step) {
+      const s = branch.samples[i];
+      const prev = branch.samples[i - 1];
+      const next = branch.samples[i + 1];
+      let dx = next.x - prev.x;
+      let dz = next.z - prev.z;
+      const len = Math.hypot(dx, dz) || 1;
+      dx /= len;
+      dz /= len;
+      if (Math.hypot(s.x, s.z) < 5)
+        continue;
+      if (Math.hypot(s.x - HOUSE_POINT.x, s.z - HOUSE_POINT.z) < 6)
+        continue;
+      if (isDecoy && i > branch.samples.length - 6)
+        continue;
+      if (nearestDecision(s.x, s.z, 4.5))
+        continue;
+      for (const side of [-1, 1]) {
+        if (hash(i, side, 181) > 0.82)
+          continue;
+        const variant = INNER_TREES[(i + (side > 0 ? 1 : 0)) % INNER_TREES.length];
+        const scale = 0.62 + hash(i, side, 419) * 0.16;
+        const offset = variant.radius * scale + PATH_HALF_WIDTH + 0.65;
+        const nx = s.x - dz * side * offset;
+        const nz = s.z + dx * side * offset;
+        const other = nearestPath(nx, nz, offset + 3);
+        if (other && other.dist < offset - 0.25)
+          continue;
+        addExtra(
+          variant.name,
+          nx,
+          nz,
+          hash(i, side, 887) * Math.PI * 2,
           scale
         );
       }
@@ -29672,15 +29714,16 @@
     }
     actx.putImageData(aimg, 0, 0);
     nctx.putImageData(nimg, 0, 0);
+    const maskSize = 2048;
     const pathCanvas = document.createElement("canvas");
-    pathCanvas.width = pathCanvas.height = size;
+    pathCanvas.width = pathCanvas.height = maskSize;
     const pctx = pathCanvas.getContext("2d");
-    pctx.clearRect(0, 0, size, size);
+    pctx.clearRect(0, 0, maskSize, maskSize);
     pctx.lineCap = "round";
     pctx.lineJoin = "round";
-    const px2 = (x) => (x + HALF) / SIZE * size;
-    const py2 = (z) => (z + HALF) / SIZE * size;
-    const coreWidth = PATH_HALF_WIDTH * 2 / SIZE * size;
+    const px2 = (x) => (x + HALF) / SIZE * maskSize;
+    const py2 = (z) => (z + HALF) / SIZE * maskSize;
+    const coreWidth = PATH_HALF_WIDTH * 2 / SIZE * maskSize;
     for (const branch of PATH_BRANCHES) {
       pctx.strokeStyle = "rgb(48, 48, 48)";
       pctx.lineWidth = coreWidth * 1.18;
@@ -29706,30 +29749,70 @@
     for (const d of PATH_DECISIONS) {
       pctx.fillStyle = "rgb(44, 44, 44)";
       pctx.beginPath();
-      pctx.arc(px2(d.x), py2(d.z), 3 / SIZE * size, 0, Math.PI * 2);
+      pctx.arc(px2(d.x), py2(d.z), 3 / SIZE * maskSize, 0, Math.PI * 2);
       pctx.fill();
     }
-    const maskData = pctx.getImageData(0, 0, size, size).data;
-    const emissiveCanvas = document.createElement("canvas");
-    emissiveCanvas.width = emissiveCanvas.height = size;
-    const ectx = emissiveCanvas.getContext("2d");
-    const eimg = ectx.createImageData(size, size);
-    for (let i = 0; i < aimg.data.length; i += 4) {
-      const m = maskData[i] / 255;
-      const p = i / 4;
-      const u = p % size / size;
-      const v = Math.floor(p / size) / size;
-      const grain = periodicNoise(u * 192, v * 192, 192, 527);
-      const g = 0.7 + grain * 0.6;
-      const r = (aimg.data[i] * 0.3 + 205 * 0.7) * g;
-      const gg = (aimg.data[i + 1] * 0.3 + 150 * 0.7) * g;
-      const b = (aimg.data[i + 2] * 0.3 + 92 * 0.7) * g;
-      eimg.data[i] = Math.min(255, r * m);
-      eimg.data[i + 1] = Math.min(255, gg * m);
-      eimg.data[i + 2] = Math.min(255, b * m);
-      eimg.data[i + 3] = 255;
+    const dirtSize = 512;
+    const dAlbedoCanvas = document.createElement("canvas");
+    dAlbedoCanvas.width = dAlbedoCanvas.height = dirtSize;
+    const dNormalCanvas = document.createElement("canvas");
+    dNormalCanvas.width = dNormalCanvas.height = dirtSize;
+    const dactx = dAlbedoCanvas.getContext("2d");
+    const dnctx = dNormalCanvas.getContext("2d");
+    const daimg = dactx.createImageData(dirtSize, dirtSize);
+    const dnimg = dnctx.createImageData(dirtSize, dirtSize);
+    const dHeights = new Float32Array(dirtSize * dirtSize);
+    const dDark = [56, 39, 26];
+    const dSoil = [92, 67, 44];
+    const dLight = [139, 105, 70];
+    for (let y = 0; y < dirtSize; y++) {
+      for (let x = 0; x < dirtSize; x++) {
+        const u = x / dirtSize;
+        const v = y / dirtSize;
+        const n1 = periodicFbm(u, v, 8, 5, 3001);
+        const n2 = periodicFbm(u, v, 16, 4, 3011);
+        const n3 = periodicFbm(u, v, 64, 3, 3023);
+        const t = smooth(clamp01((n1 - 0.3) / 0.38));
+        let r = mix(dDark[0], dSoil[0], t);
+        let g = mix(dDark[1], dSoil[1], t);
+        let b = mix(dDark[2], dSoil[2], t);
+        const stone = n3 > 0.86 ? (n3 - 0.86) * 150 : 0;
+        const grain = (n2 - 0.5) * 16 + (n3 - 0.5) * 20;
+        r = Math.max(0, Math.min(255, r + grain + stone * 0.8));
+        g = Math.max(0, Math.min(255, g + grain + stone * 0.7));
+        b = Math.max(0, Math.min(255, b + grain + stone * 0.55));
+        const i = (y * dirtSize + x) * 4;
+        daimg.data[i] = r;
+        daimg.data[i + 1] = g;
+        daimg.data[i + 2] = b;
+        daimg.data[i + 3] = 255;
+        dHeights[y * dirtSize + x] = n1 * 0.4 + n2 * 0.35 + n3 * 0.25;
+      }
     }
-    ectx.putImageData(eimg, 0, 0);
+    const dwrap = (i) => (i + dirtSize) % dirtSize;
+    const dStrength = 1.2;
+    for (let y = 0; y < dirtSize; y++) {
+      for (let x = 0; x < dirtSize; x++) {
+        const hL = dHeights[y * dirtSize + dwrap(x - 1)];
+        const hR = dHeights[y * dirtSize + dwrap(x + 1)];
+        const hD = dHeights[dwrap(y - 1) * dirtSize + x];
+        const hU = dHeights[dwrap(y + 1) * dirtSize + x];
+        let nx = (hL - hR) * dStrength;
+        let ny = (hD - hU) * dStrength;
+        let nz = 1;
+        const inv = 1 / Math.hypot(nx, ny, nz);
+        nx *= inv;
+        ny *= inv;
+        nz *= inv;
+        const i = (y * dirtSize + x) * 4;
+        dnimg.data[i] = (nx * 0.5 + 0.5) * 255;
+        dnimg.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+        dnimg.data[i + 2] = (nz * 0.5 + 0.5) * 255;
+        dnimg.data[i + 3] = 255;
+      }
+    }
+    dactx.putImageData(daimg, 0, 0);
+    dnctx.putImageData(dnimg, 0, 0);
     const maxAniso = renderer2 && renderer2.capabilities ? Math.min(8, renderer2.capabilities.getMaxAnisotropy()) : 1;
     const albedo = new CanvasTexture(albedoCanvas);
     albedo.colorSpace = SRGBColorSpace;
@@ -29743,14 +29826,26 @@
     normal.repeat.set(8, 8);
     normal.anisotropy = maxAniso;
     normal.needsUpdate = true;
-    const emissive = new CanvasTexture(emissiveCanvas);
-    emissive.colorSpace = SRGBColorSpace;
-    emissive.flipY = false;
-    emissive.wrapS = emissive.wrapT = ClampToEdgeWrapping;
-    emissive.repeat.set(1, 1);
-    emissive.anisotropy = maxAniso;
-    emissive.needsUpdate = true;
-    return { albedo, normal, emissive };
+    const pathAlpha = new CanvasTexture(pathCanvas);
+    pathAlpha.colorSpace = NoColorSpace;
+    pathAlpha.flipY = false;
+    pathAlpha.wrapS = pathAlpha.wrapT = ClampToEdgeWrapping;
+    pathAlpha.repeat.set(1, 1);
+    pathAlpha.anisotropy = maxAniso;
+    pathAlpha.needsUpdate = true;
+    const pathMap = new CanvasTexture(dAlbedoCanvas);
+    pathMap.colorSpace = SRGBColorSpace;
+    pathMap.wrapS = pathMap.wrapT = RepeatWrapping;
+    pathMap.repeat.set(16, 16);
+    pathMap.anisotropy = maxAniso;
+    pathMap.needsUpdate = true;
+    const pathNormal = new CanvasTexture(dNormalCanvas);
+    pathNormal.colorSpace = NoColorSpace;
+    pathNormal.wrapS = pathNormal.wrapT = RepeatWrapping;
+    pathNormal.repeat.set(16, 16);
+    pathNormal.anisotropy = maxAniso;
+    pathNormal.needsUpdate = true;
+    return { albedo, normal, pathAlpha, pathMap, pathNormal };
   }
   var heightGrid = null;
   function gridHeightAt(x, z) {
@@ -29850,9 +29945,6 @@
       map: textures.albedo,
       normalMap: textures.normal,
       normalScale: new Vector2(0.14, 0.14),
-      emissive: new Color(16777215),
-      emissiveMap: textures.emissive,
-      emissiveIntensity: 0.65,
       vertexColors: true,
       roughness: 0.95,
       metalness: 0,
@@ -29863,6 +29955,27 @@
     mesh.receiveShadow = true;
     mesh.castShadow = false;
     scene2.add(mesh);
+    const pathMaterial = new MeshStandardMaterial({
+      map: textures.pathMap,
+      normalMap: textures.pathNormal,
+      normalScale: new Vector2(0.22, 0.22),
+      alphaMap: textures.pathAlpha,
+      transparent: true,
+      depthWrite: false,
+      roughness: 0.96,
+      metalness: 0,
+      color: 16777215,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
+    });
+    const pathMesh = new Mesh(geo, pathMaterial);
+    pathMesh.name = "Path";
+    pathMesh.position.y = 0.012;
+    pathMesh.receiveShadow = true;
+    pathMesh.castShadow = false;
+    pathMesh.renderOrder = 2;
+    scene2.add(pathMesh);
     return mesh;
   }
 
@@ -31267,6 +31380,7 @@
 
   // js/main.js
   var EYE_HEIGHT = 1.6;
+  var PATH_CORRIDOR = PATH_HALF_WIDTH + 1.35;
   var state = {
     playing: false,
     gameOver: false,
@@ -31743,6 +31857,14 @@
       camera.position.addScaledVector(move, speed);
       camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
       resolveCollisions();
+      const near = nearestPath(camera.position.x, camera.position.z, 40);
+      if (near && near.dist > PATH_CORRIDOR) {
+        const dx = camera.position.x - near.sample.x;
+        const dz = camera.position.z - near.sample.z;
+        const d = Math.hypot(dx, dz) || 1;
+        camera.position.x = near.sample.x + dx / d * PATH_CORRIDOR;
+        camera.position.z = near.sample.z + dz / d * PATH_CORRIDOR;
+      }
       camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     }
     if (state.keys["KeyE"]) {

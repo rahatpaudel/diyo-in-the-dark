@@ -4,12 +4,13 @@ import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
 import { loadHands, createIntro } from './intro.js';
 import { buildTerrain, heightAt } from './terrain.js';
-import { pathSummary } from './path.js';
+import { pathSummary, nearestPath, PATH_HALF_WIDTH } from './path.js';
 
 /* ------------------------------------------------------------------ */
 /*  Game state                                                        */
 /* ------------------------------------------------------------------ */
 const EYE_HEIGHT = 1.6;
+const PATH_CORRIDOR = PATH_HALF_WIDTH + 1.35;
 
 const state = {
   playing: false,
@@ -703,6 +704,18 @@ function updatePlayer(dt) {
     camera.position.y =
       heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     resolveCollisions();
+
+    // The forest is scenery, not a shortcut. Keep the player inside the trail
+    // corridor; the dense inner tree wall makes this boundary readable.
+    const near = nearestPath(camera.position.x, camera.position.z, 40);
+    if (near && near.dist > PATH_CORRIDOR) {
+      const dx = camera.position.x - near.sample.x;
+      const dz = camera.position.z - near.sample.z;
+      const d = Math.hypot(dx, dz) || 1;
+      camera.position.x = near.sample.x + (dx / d) * PATH_CORRIDOR;
+      camera.position.z = near.sample.z + (dz / d) * PATH_CORRIDOR;
+    }
+
     camera.position.y =
       heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
   }
