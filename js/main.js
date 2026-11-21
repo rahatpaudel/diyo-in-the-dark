@@ -3,6 +3,7 @@ import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
 import { createWind } from './wind.js';
 import { createAudio } from './audio.js';
+import { createFireworks } from './fireworks.js';
 import { loadHands, createIntro } from './intro.js';
 import { buildTerrain, heightAt } from './terrain.js';
 import { buildRiddleSign } from './riddle.js';
@@ -28,7 +29,7 @@ const STRANDED_SCREEN_DELAY = 4.2;
 // The house is reached just before the trail's end; this is a doorstep radius.
 const WIN_RADIUS = 4.8;
 // Let the house light up and settle before the title card.
-const WIN_SCREEN_DELAY = 6.0;
+const WIN_SCREEN_DELAY = 7.0;
 
 const state = {
   playing: false,
@@ -80,6 +81,7 @@ const UI = {
 /* ------------------------------------------------------------------ */
 let scene, camera, renderer, clock;
 let light, house, flame, handFill, handFlame, wind, audio;
+let fireworks, endingCam;
 let houseBulbs = [];
 let houseLights = [];
 let houseGlow = [];
@@ -209,6 +211,7 @@ function init() {
   camera.position.y =
     heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
   buildHouse();
+  fireworks = createFireworks(scene, house);
 
   // Input
   window.addEventListener('keydown', onKeyDown);
@@ -708,6 +711,7 @@ function onMouseMove(e) {
     state.gameOver ||
     state.won ||
     state.cinematic ||
+    state.ending ||
     document.pointerLockElement !== document.body
   ) {
     return;
@@ -747,7 +751,7 @@ function onPointerLockChange() {
   if (locked) {
     UI.instructions.style.display = 'none';
   } else {
-    if (state.playing && !state.gameOver && !state.won) {
+    if (state.playing && !state.gameOver && !state.won && !state.ending) {
       UI.instructions.textContent = state.spectator
         ? 'Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit'
         : 'Click to resume \u2022 WASD to move \u2022 Mouse to look';
@@ -975,6 +979,30 @@ function startEnding() {
     glow.mat.emissiveIntensity = 0;
   }
 
+  // Pull the camera up and back before the house lights fully arrive. The
+  // path rises vertically out of the clearing first, then arcs to a high
+  // three-quarter view, which also lifts it above the surrounding canopy.
+  const look = new THREE.Vector3(
+    house.position.x,
+    house.position.y + 5.5,
+    house.position.z
+  );
+  const to = new THREE.Vector3(
+    house.position.x + 6.5,
+    house.position.y + 14,
+    house.position.z + 8.5
+  );
+  const from = camera.position.clone();
+  endingCam = {
+    from,
+    to,
+    control: new THREE.Vector3(from.x, from.y + 9, from.z),
+    look,
+    fromYaw: state.yaw,
+    fromPitch: state.pitch
+  };
+
+  if (fireworks) fireworks.start();
   if (audio) audio.playWin();
 }
 
@@ -1002,8 +1030,40 @@ function updateEnding(dt) {
       lit * entry.peak * (0.9 + 0.1 * Math.sin(t * 2.1 + entry.phase));
   }
 
-  // The diya is still in the player's hand while the house wakes.
-  light.intensity = 44 * flame.flicker;
+  // Camera: vertical lift, then an arc to the high view. The aim eases from
+  // the player's look direction to the house.
+  if (endingCam) {
+    const u = clamp(t / 3.6);
+    const e = u * u * (3 - 2 * u);
+    const a = (1 - e) * (1 - e);
+    const b = 2 * (1 - e) * e;
+    const c = e * e;
+    camera.position.set(
+      a * endingCam.from.x + b * endingCam.control.x + c * endingCam.to.x,
+      a * endingCam.from.y + b * endingCam.control.y + c * endingCam.to.y,
+      a * endingCam.from.z + b * endingCam.control.z + c * endingCam.to.z
+    );
+
+    const dx = endingCam.look.x - camera.position.x;
+    const dy = endingCam.look.y - camera.position.y;
+    const dz = endingCam.look.z - camera.position.z;
+    const lookYaw = Math.atan2(-dx, -dz);
+    const lookPitch = Math.atan2(dy, Math.hypot(dx, dz));
+    const aim = clamp(t / 1.1);
+    const aimEase = aim * aim * (3 - 2 * aim);
+    let yawDelta = lookYaw - endingCam.fromYaw;
+    yawDelta = Math.atan2(Math.sin(yawDelta), Math.cos(yawDelta));
+    state.yaw = endingCam.fromYaw + yawDelta * aimEase;
+    state.pitch =
+      endingCam.fromPitch + (lookPitch - endingCam.fromPitch) * aimEase;
+    camera.rotation.set(state.pitch, state.yaw, 0);
+  }
+
+  // The diya leaves the frame with the camera move.
+  const hudFade = Math.max(0, 1 - t / 1.6);
+  light.intensity = 44 * flame.flicker * hudFade;
+  if (intro) intro.handLight.intensity = 4.6 * hudFade;
+  if (t > 1.6 && flame.mesh.visible) flame.setVisible(false);
 
   if (t >= WIN_SCREEN_DELAY) showWinScreen();
 }
@@ -1021,6 +1081,10 @@ function showWinScreen() {
   UI.message.style.display = 'none';
   UI.overlay.classList.remove('menu', 'is-leaving', 'stranded');
   UI.overlay.classList.add('won');
+  light.intensity = 0;
+  if (intro) intro.handLight.intensity = 0;
+  if (flame.mesh.visible) flame.setVisible(false);
+
   UI.overlay.innerHTML = `
     <h1 style="color:#ffd27a">You win</h1>
     <p>The house answers your little flame with every colour it has.</p>
@@ -1233,9 +1297,13 @@ function animate() {
     if (state.cinematic) {
       target = intro && intro.lit ? 3.0 : 0.15;
     } else if (state.playing) {
-      target = state.stranded
-        ? 3.0 * Math.max(0, 1 - state.deathTime / 2.8)
-        : 3.0;
+      if (state.stranded) {
+        target = 3.0 * Math.max(0, 1 - state.deathTime / 2.8);
+      } else if (state.ending) {
+        target = 3.0 * Math.max(0, 1 - state.endingTime / 1.6);
+      } else {
+        target = 3.0;
+      }
     }
     handFill.intensity +=
       (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
@@ -1259,6 +1327,7 @@ function animate() {
   }
 
   if (wind) wind.update(delta, camera.position, state.stranded);
+  if (fireworks && (state.ending || state.won)) fireworks.update(delta);
 
   // Remember the look angles for the next frame: mousemove fires between
   // frames, so this is the only place the change can be measured.

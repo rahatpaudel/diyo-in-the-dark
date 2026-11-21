@@ -28579,6 +28579,158 @@
     };
   }
 
+  // js/fireworks.js
+  var BURSTS = 8;
+  var PER_BURST = 70;
+  var TOTAL = BURSTS * PER_BURST;
+  var GRAVITY = 2.6;
+  var PALETTE = [
+    16732754,
+    16765286,
+    6476543,
+    9109402,
+    13667327,
+    16752451
+  ];
+  function glowTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, "rgba(255,255,255,1)");
+    gradient.addColorStop(0.35, "rgba(255,255,255,0.8)");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 64, 64);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
+  }
+  function createFireworks(scene2, house2) {
+    const positions = new Float32Array(TOTAL * 3);
+    const colors = new Float32Array(TOTAL * 3);
+    const velocities = new Float32Array(TOTAL * 3);
+    const baseColors = new Float32Array(TOTAL * 3);
+    const life = new Float32Array(TOTAL);
+    const maxLife = new Float32Array(TOTAL);
+    for (let i = 0; i < TOTAL; i++) {
+      positions[i * 3 + 1] = -1e3;
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new BufferAttribute(positions, 3)
+    );
+    geometry.setAttribute("color", new BufferAttribute(colors, 3));
+    const material = new PointsMaterial({
+      size: 0.42,
+      map: glowTexture(),
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      sizeAttenuation: true
+    });
+    const points = new Points(geometry, material);
+    points.name = "Fireworks";
+    points.frustumCulled = false;
+    points.visible = false;
+    scene2.add(points);
+    const colorA = new Color();
+    const colorB = new Color();
+    let active = false;
+    let time = 0;
+    let nextBurst = 0;
+    let cursor = 0;
+    function clear() {
+      for (let i = 0; i < TOTAL; i++) {
+        life[i] = 0;
+        positions[i * 3 + 1] = -1e3;
+        colors[i * 3] = 0;
+        colors[i * 3 + 1] = 0;
+        colors[i * 3 + 2] = 0;
+      }
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+    }
+    function burst() {
+      const originX = house2.position.x + (Math.random() - 0.5) * 7;
+      const originZ = house2.position.z + (Math.random() - 0.5) * 5;
+      const originY = house2.position.y + 7.5 + Math.random() * 4;
+      colorA.setHex(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
+      colorB.setHex(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
+      for (let i = 0; i < PER_BURST; i++) {
+        const index = cursor;
+        cursor = (cursor + 1) % TOTAL;
+        const i3 = index * 3;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const speed = 2.4 + Math.random() * 3.4;
+        const sinPhi = Math.sin(phi);
+        positions[i3] = originX;
+        positions[i3 + 1] = originY;
+        positions[i3 + 2] = originZ;
+        velocities[i3] = Math.cos(theta) * sinPhi * speed;
+        velocities[i3 + 1] = Math.cos(phi) * speed;
+        velocities[i3 + 2] = Math.sin(theta) * sinPhi * speed;
+        const mix2 = Math.random();
+        baseColors[i3] = colorA.r + (colorB.r - colorA.r) * mix2;
+        baseColors[i3 + 1] = colorA.g + (colorB.g - colorA.g) * mix2;
+        baseColors[i3 + 2] = colorA.b + (colorB.b - colorA.b) * mix2;
+        maxLife[index] = 1.2 + Math.random() * 0.9;
+        life[index] = maxLife[index];
+      }
+    }
+    function start() {
+      active = true;
+      time = 0;
+      nextBurst = 1;
+      cursor = 0;
+      clear();
+      points.visible = true;
+    }
+    function update(dt) {
+      if (!active)
+        return;
+      time += dt;
+      if (time >= nextBurst) {
+        burst();
+        nextBurst = time + 0.9 + Math.random() * 0.7;
+      }
+      for (let i = 0; i < TOTAL; i++) {
+        if (life[i] <= 0)
+          continue;
+        const i3 = i * 3;
+        life[i] -= dt;
+        if (life[i] <= 0) {
+          life[i] = 0;
+          positions[i3 + 1] = -1e3;
+          colors[i3] = 0;
+          colors[i3 + 1] = 0;
+          colors[i3 + 2] = 0;
+          continue;
+        }
+        velocities[i3 + 1] -= GRAVITY * dt;
+        positions[i3] += velocities[i3] * dt;
+        positions[i3 + 1] += velocities[i3 + 1] * dt;
+        positions[i3 + 2] += velocities[i3 + 2] * dt;
+        const fade = life[i] / maxLife[i];
+        const glow = fade * fade;
+        colors[i3] = baseColors[i3] * glow;
+        colors[i3 + 1] = baseColors[i3 + 1] * glow;
+        colors[i3 + 2] = baseColors[i3 + 2] * glow;
+      }
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+    }
+    return {
+      points,
+      start,
+      update
+    };
+  }
+
   // js/intro.js
   var HAND_DIR = "models/";
   var LEFT_URL = HAND_DIR + "hand_left.glb";
@@ -29868,7 +30020,7 @@
   var COMMIT_DISTANCE = 3.4;
   var STRANDED_SCREEN_DELAY = 4.2;
   var WIN_RADIUS = 4.8;
-  var WIN_SCREEN_DELAY = 6;
+  var WIN_SCREEN_DELAY = 7;
   var state = {
     playing: false,
     gameOver: false,
@@ -29912,6 +30064,8 @@
   var handFlame;
   var wind;
   var audio;
+  var fireworks;
+  var endingCam;
   var houseBulbs = [];
   var houseLights = [];
   var houseGlow = [];
@@ -29986,6 +30140,7 @@
     ground = buildTerrain(scene, renderer);
     camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     buildHouse();
+    fireworks = createFireworks(scene, house);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("mousemove", onMouseMove);
@@ -30350,7 +30505,7 @@
     document.body.classList.remove("is-spectator");
   }
   function onMouseMove(e) {
-    if (!state.playing || state.gameOver || state.won || state.cinematic || document.pointerLockElement !== document.body) {
+    if (!state.playing || state.gameOver || state.won || state.cinematic || state.ending || document.pointerLockElement !== document.body) {
       return;
     }
     state.yaw -= e.movementX * state.mouseSensitivity;
@@ -30375,7 +30530,7 @@
     if (locked) {
       UI.instructions.style.display = "none";
     } else {
-      if (state.playing && !state.gameOver && !state.won) {
+      if (state.playing && !state.gameOver && !state.won && !state.ending) {
         UI.instructions.textContent = state.spectator ? "Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit" : "Click to resume \u2022 WASD to move \u2022 Mouse to look";
         UI.instructions.style.display = "block";
       } else {
@@ -30568,6 +30723,27 @@
       glow.mat.emissive.set(glow.color);
       glow.mat.emissiveIntensity = 0;
     }
+    const look = new Vector3(
+      house.position.x,
+      house.position.y + 5.5,
+      house.position.z
+    );
+    const to = new Vector3(
+      house.position.x + 6.5,
+      house.position.y + 14,
+      house.position.z + 8.5
+    );
+    const from = camera.position.clone();
+    endingCam = {
+      from,
+      to,
+      control: new Vector3(from.x, from.y + 9, from.z),
+      look,
+      fromYaw: state.yaw,
+      fromPitch: state.pitch
+    };
+    if (fireworks)
+      fireworks.start();
     if (audio)
       audio.playWin();
   }
@@ -30588,7 +30764,36 @@
       const lit = clamp3((t - entry.delay) / 2.2);
       entry.light.intensity = lit * entry.peak * (0.9 + 0.1 * Math.sin(t * 2.1 + entry.phase));
     }
-    light.intensity = 44 * flame.flicker;
+    if (endingCam) {
+      const u = clamp3(t / 3.6);
+      const e = u * u * (3 - 2 * u);
+      const a = (1 - e) * (1 - e);
+      const b = 2 * (1 - e) * e;
+      const c = e * e;
+      camera.position.set(
+        a * endingCam.from.x + b * endingCam.control.x + c * endingCam.to.x,
+        a * endingCam.from.y + b * endingCam.control.y + c * endingCam.to.y,
+        a * endingCam.from.z + b * endingCam.control.z + c * endingCam.to.z
+      );
+      const dx = endingCam.look.x - camera.position.x;
+      const dy = endingCam.look.y - camera.position.y;
+      const dz = endingCam.look.z - camera.position.z;
+      const lookYaw = Math.atan2(-dx, -dz);
+      const lookPitch = Math.atan2(dy, Math.hypot(dx, dz));
+      const aim = clamp3(t / 1.1);
+      const aimEase = aim * aim * (3 - 2 * aim);
+      let yawDelta = lookYaw - endingCam.fromYaw;
+      yawDelta = Math.atan2(Math.sin(yawDelta), Math.cos(yawDelta));
+      state.yaw = endingCam.fromYaw + yawDelta * aimEase;
+      state.pitch = endingCam.fromPitch + (lookPitch - endingCam.fromPitch) * aimEase;
+      camera.rotation.set(state.pitch, state.yaw, 0);
+    }
+    const hudFade = Math.max(0, 1 - t / 1.6);
+    light.intensity = 44 * flame.flicker * hudFade;
+    if (intro)
+      intro.handLight.intensity = 4.6 * hudFade;
+    if (t > 1.6 && flame.mesh.visible)
+      flame.setVisible(false);
     if (t >= WIN_SCREEN_DELAY)
       showWinScreen();
   }
@@ -30605,6 +30810,11 @@
     UI.message.style.display = "none";
     UI.overlay.classList.remove("menu", "is-leaving", "stranded");
     UI.overlay.classList.add("won");
+    light.intensity = 0;
+    if (intro)
+      intro.handLight.intensity = 0;
+    if (flame.mesh.visible)
+      flame.setVisible(false);
     UI.overlay.innerHTML = `
     <h1 style="color:#ffd27a">You win</h1>
     <p>The house answers your little flame with every colour it has.</p>
@@ -30756,7 +30966,13 @@
       if (state.cinematic) {
         target = intro && intro.lit ? 3 : 0.15;
       } else if (state.playing) {
-        target = state.stranded ? 3 * Math.max(0, 1 - state.deathTime / 2.8) : 3;
+        if (state.stranded) {
+          target = 3 * Math.max(0, 1 - state.deathTime / 2.8);
+        } else if (state.ending) {
+          target = 3 * Math.max(0, 1 - state.endingTime / 1.6);
+        } else {
+          target = 3;
+        }
       }
       handFill.intensity += (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
     }
@@ -30773,6 +30989,8 @@
     }
     if (wind)
       wind.update(delta, camera.position, state.stranded);
+    if (fireworks && (state.ending || state.won))
+      fireworks.update(delta);
     _prevYaw = state.yaw;
     _prevPitch = state.pitch;
     renderFrame();
