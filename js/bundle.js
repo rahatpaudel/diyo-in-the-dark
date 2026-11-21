@@ -29175,6 +29175,11 @@
       metalness: 0,
       flatShading: true
     });
+    const sill = new Mesh(new BoxGeometry(3.8, 0.34, 0.92), stone);
+    sill.position.set(0, 0.17, 0);
+    sill.castShadow = true;
+    sill.receiveShadow = true;
+    group.add(sill);
     const postH = 3.7;
     for (const x of [-1.5, 1.5]) {
       const post = new Mesh(new BoxGeometry(0.22, postH, 0.22), wood);
@@ -29312,12 +29317,12 @@
     const sign2 = buildSign(glyphs, renderer2);
     const signX = RIDDLE_SITE.sign.x;
     const signZ = RIDDLE_SITE.sign.z;
-    sign2.position.set(signX, heightAt(signX, signZ) - 0.1, signZ);
+    sign2.position.set(signX, heightAt(signX, signZ) - 0.14, signZ);
     sign2.rotation.y = yawToward(signX, signZ, RIDDLE_SITE.approach);
     group.add(sign2);
     for (const site of RIDDLE_SITE.stones) {
       const stone = buildStone(glyphs[site.icon], renderer2);
-      stone.position.set(site.x, heightAt(site.x, site.z) - 0.05, site.z);
+      stone.position.set(site.x, heightAt(site.x, site.z) - 0.12, site.z);
       stone.rotation.y = yawToward(site.x, site.z, RIDDLE_SITE.approach);
       group.add(stone);
     }

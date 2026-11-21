@@ -328,6 +328,14 @@ function buildSign(glyphs, renderer) {
     flatShading: true
   });
 
+  // A low stone sill bridges the ground under both posts, so the sign stays
+  // seated even where the forest floor slopes across its width.
+  const sill = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.34, 0.92), stone);
+  sill.position.set(0, 0.17, 0);
+  sill.castShadow = true;
+  sill.receiveShadow = true;
+  group.add(sill);
+
   const postH = 3.7;
   for (const x of [-1.5, 1.5]) {
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, postH, 0.22), wood);
@@ -482,13 +490,13 @@ export async function buildRiddleSign(scene, renderer) {
   const sign = buildSign(glyphs, renderer);
   const signX = RIDDLE_SITE.sign.x;
   const signZ = RIDDLE_SITE.sign.z;
-  sign.position.set(signX, heightAt(signX, signZ) - 0.1, signZ);
+  sign.position.set(signX, heightAt(signX, signZ) - 0.14, signZ);
   sign.rotation.y = yawToward(signX, signZ, RIDDLE_SITE.approach);
   group.add(sign);
 
   for (const site of RIDDLE_SITE.stones) {
     const stone = buildStone(glyphs[site.icon], renderer);
-    stone.position.set(site.x, heightAt(site.x, site.z) - 0.05, site.z);
+    stone.position.set(site.x, heightAt(site.x, site.z) - 0.12, site.z);
     stone.rotation.y = yawToward(site.x, site.z, RIDDLE_SITE.approach);
     group.add(stone);
   }
