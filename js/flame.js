@@ -136,13 +136,13 @@ const FRAG = `
     spine += sin(t * 2.45 - H * 2.6 + 1.7) * 0.008 * H;
     spine += sin(t * 5.2 + H * 3.6 + 0.7) * 0.011 * uFlutter * H;
 
-    // Plump teardrop: pinched at the wick, a gentle taper, then a circular cap
-    // so the top reads round rather than pointed.
-    float rise = smoothstep(0.0, 0.18, H);
-    float taper = 1.0 - 0.50 * smoothstep(0.20, 0.76, H);
-    float capT = clamp((H - 0.72) / 0.28, 0.0, 1.0);
-    float cap = sqrt(max(0.0, 1.0 - capT * capT));
-    float R = 0.16 * pow(rise, 0.52) * taper * cap + 0.004;
+    // Teardrop with a full lower body and a circular shoulder, so the tip is
+    // round rather than needle-sharp.
+    float rise = smoothstep(0.0, 0.16, H);
+    float capU = clamp((H - 0.34) / 0.66, 0.0, 1.0);
+    float cap = sqrt(max(0.0, 1.0 - capU * capU));
+    float body = 1.0 - 0.12 * capU;
+    float R = 0.145 * pow(rise, 0.55) * body * cap + 0.003;
 
     // Mild dither only: full per-pixel jitter reads as grain on a flame this
     // small.
@@ -173,19 +173,19 @@ const FRAG = `
 
       // The noise pushes the silhouette itself, so the outline licks and
       // curls instead of staying a perfect teardrop.
-      float rmod = 0.90 + (0.20 + 0.22 * uFlutter) * (n - 0.5) * 2.0;
+      float rmod = 0.94 + (0.12 + 0.25 * uFlutter) * (n - 0.5) * 2.0;
       float rad = sqrt(rx * rx + rz * rz) / rmod;
 
       float env = 1.0 - smoothstep(0.36, 1.05, rad);
       float body = env * (0.32 + 1.08 * n);
       body *= smoothstep(0.0, 0.12, yv);
-      body *= 1.0 - smoothstep(0.80, 1.08, yv);
+      body *= 1.0 - smoothstep(0.90, 1.12, yv);
       body = clamp(body, 0.0, 1.0);
 
-      // Broad, nearly uniform glow with a warmer skin at the silhouette.
-      float core = 1.0 - smoothstep(0.20, 1.10, rad);
-      float heat = 0.62 + 0.38 * core;
-      heat *= 1.0 - 0.10 * smoothstep(0.45, 1.0, H);
+      // Bright yellow-white body with an amber rim, like a still diya flame.
+      float core = 1.0 - smoothstep(0.10, 1.05, rad);
+      float heat = 0.60 + 0.40 * core;
+      heat *= 1.0 - 0.08 * smoothstep(0.50, 1.0, H);
       heat = clamp(heat + 0.05 * (n - 0.5), 0.0, 1.0);
 
       vec3 emit = blackbody(heat);
@@ -229,7 +229,7 @@ export function createFlame(camera) {
 
   // Taller than the plume so the base can fade out inside the quad. Wide
   // enough that the flame reads as a plume rather than a candle sliver.
-  const geometry = new THREE.PlaneGeometry(0.4, 0.36);
+  const geometry = new THREE.PlaneGeometry(0.4, 0.4);
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'DiyoFlame';
   mesh.position.set(0.60, -0.40, -1.0); // ~75% across, ~80% down at 16:9
@@ -344,7 +344,7 @@ export function createFlame(camera) {
     const s = scale > 0 ? scale : 1;
     currentScale = s;
     mesh.scale.setScalar(s);
-    mesh.position.set(x, y + 0.077 * s, z);
+    mesh.position.set(x, y + 0.087 * s, z);
   }
 
   function dispose() {
