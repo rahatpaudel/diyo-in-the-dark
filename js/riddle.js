@@ -595,7 +595,11 @@ export async function buildRiddleSign(scene, renderer) {
       heightAt(site.sign.x, site.sign.z) - 0.14,
       site.sign.z
     );
-    sign.rotation.y = yawToward(site.sign.x, site.sign.z, site.approach);
+    sign.rotation.y = yawToward(
+      site.sign.x,
+      site.sign.z,
+      site.facing || site.approach
+    );
     group.add(sign);
 
     for (const stoneSite of site.stones) {
@@ -618,7 +622,11 @@ export async function buildRiddleSign(scene, renderer) {
         heightAt(stoneSite.x, stoneSite.z) - 0.12,
         stoneSite.z
       );
-      stone.rotation.y = yawToward(stoneSite.x, stoneSite.z, site.approach);
+      stone.rotation.y = yawToward(
+        stoneSite.x,
+        stoneSite.z,
+        site.facing || site.approach
+      );
       group.add(stone);
     }
 

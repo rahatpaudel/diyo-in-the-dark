@@ -55,11 +55,12 @@ export const RIDDLE_SITES = [
     titleNe: 'दीर्घायुको प्रतीक',
     subtitle: 'symbol of long life',
     approach: { x: -2, z: -96 },
-    sign: { x: 2.0, z: -100.0, radius: 1.15, footprint: 0.85 },
+    facing: { x: -2, z: -92 },
+    sign: { x: -3.7, z: -99.0, radius: 1.15, footprint: 0.85 },
     stones: [
-      { ne: 'गुलाब', en: 'rose', branch: 'q4-east', x: 5.3, z: -96.6, radius: 0.8, footprint: 0.82 },
-      { ne: 'मखमली', en: 'makhamali', branch: 'q4-correct', x: -3.5, z: -99.8, radius: 0.8, footprint: 0.82 },
-      { ne: 'कमल', en: 'lotus', branch: 'q4-west', x: -9.5, z: -96.9, radius: 0.8, footprint: 0.82 }
+      { ne: 'गुलाब', en: 'rose', branch: 'q4-east', x: 0.4, z: -94.5, radius: 0.8, footprint: 0.82 },
+      { ne: 'मखमली', en: 'makhamali', branch: 'q4-correct', x: 1.1, z: -99.5, radius: 0.8, footprint: 0.82 },
+      { ne: 'कमल', en: 'lotus', branch: 'q4-west', x: -4.7, z: -94.4, radius: 0.8, footprint: 0.82 }
     ]
   }
 ];

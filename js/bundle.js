@@ -26659,11 +26659,12 @@
       titleNe: "\u0926\u0940\u0930\u094D\u0918\u093E\u092F\u0941\u0915\u094B \u092A\u094D\u0930\u0924\u0940\u0915",
       subtitle: "symbol of long life",
       approach: { x: -2, z: -96 },
-      sign: { x: 2, z: -100, radius: 1.15, footprint: 0.85 },
+      facing: { x: -2, z: -92 },
+      sign: { x: -3.7, z: -99, radius: 1.15, footprint: 0.85 },
       stones: [
-        { ne: "\u0917\u0941\u0932\u093E\u092C", en: "rose", branch: "q4-east", x: 5.3, z: -96.6, radius: 0.8, footprint: 0.82 },
-        { ne: "\u092E\u0916\u092E\u0932\u0940", en: "makhamali", branch: "q4-correct", x: -3.5, z: -99.8, radius: 0.8, footprint: 0.82 },
-        { ne: "\u0915\u092E\u0932", en: "lotus", branch: "q4-west", x: -9.5, z: -96.9, radius: 0.8, footprint: 0.82 }
+        { ne: "\u0917\u0941\u0932\u093E\u092C", en: "rose", branch: "q4-east", x: 0.4, z: -94.5, radius: 0.8, footprint: 0.82 },
+        { ne: "\u092E\u0916\u092E\u0932\u0940", en: "makhamali", branch: "q4-correct", x: 1.1, z: -99.5, radius: 0.8, footprint: 0.82 },
+        { ne: "\u0915\u092E\u0932", en: "lotus", branch: "q4-west", x: -4.7, z: -94.4, radius: 0.8, footprint: 0.82 }
       ]
     }
   ];
@@ -29464,7 +29465,11 @@
         heightAt(site.sign.x, site.sign.z) - 0.14,
         site.sign.z
       );
-      sign2.rotation.y = yawToward(site.sign.x, site.sign.z, site.approach);
+      sign2.rotation.y = yawToward(
+        site.sign.x,
+        site.sign.z,
+        site.facing || site.approach
+      );
       group.add(sign2);
       for (const stoneSite of site.stones) {
         const content = stoneSite.icon ? { glyph: glyphs[stoneSite.icon] } : stoneSite.mark ? {
@@ -29480,7 +29485,11 @@
           heightAt(stoneSite.x, stoneSite.z) - 0.12,
           stoneSite.z
         );
-        stone.rotation.y = yawToward(stoneSite.x, stoneSite.z, site.approach);
+        stone.rotation.y = yawToward(
+          stoneSite.x,
+          stoneSite.z,
+          site.facing || site.approach
+        );
         group.add(stone);
       }
       for (const prop of [site.sign, ...site.stones]) {
