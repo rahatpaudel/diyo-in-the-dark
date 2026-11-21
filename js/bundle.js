@@ -28275,30 +28275,50 @@
   var COUNT = 240;
   var RANGE = 11;
   var CEILING = 4.2;
+  var RIBBON_LENGTH = 0.82;
   var _matrix = new Matrix4();
   var _basisX = new Vector3();
   var _basisY = new Vector3();
   var _basisZ = new Vector3();
   var _scale = new Vector3();
   var _wind = new Vector3();
+  var VERT2 = `
+  uniform float uTime;
+  uniform float uWave;
+  attribute float aPhase;
+  attribute float aAmp;
+  varying float vEdge;
+
+  void main() {
+    vec3 transformed = position;
+    float edge = abs(position.x) / ${(RIBBON_LENGTH / 2).toFixed(3)};
+    float wave = sin(
+      position.x * (7.0 + 5.0 * uWave) +
+      uTime * (4.0 + 7.0 * uWave) +
+      aPhase
+    );
+    transformed.y +=
+      wave * aAmp * (0.35 + 0.65 * edge) * (0.5 + 0.8 * uWave);
+    vEdge = 1.0 - smoothstep(0.55, 1.0, edge);
+    #include <project_vertex>
+  }
+`;
+  var FRAG2 = `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vEdge;
+
+  void main() {
+    gl_FragColor = vec4(uColor, uOpacity * vEdge);
+  }
+`;
   function randomBetween(lo, hi) {
     return lo + Math.random() * (hi - lo);
   }
   function createWind(scene2) {
-    const geometry = new PlaneGeometry(0.62, 0.018);
-    const material = new MeshBasicMaterial({
-      color: 13616562,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      side: DoubleSide
-    });
-    const mesh = new InstancedMesh(geometry, material, COUNT);
-    mesh.name = "Wind";
-    mesh.frustumCulled = false;
-    mesh.visible = false;
-    scene2.add(mesh);
     const particles = [];
+    const phases = new Float32Array(COUNT);
+    const amplitudes = new Float32Array(COUNT);
     for (let i = 0; i < COUNT; i++) {
       particles.push({
         x: 0,
@@ -28310,8 +28330,44 @@
         drift: randomBetween(-0.6, 0.6),
         age: randomBetween(0, 4)
       });
+      phases[i] = randomBetween(0, Math.PI * 2);
+      amplitudes[i] = randomBetween(0.025, 0.085);
     }
+    const geometry = new PlaneGeometry(
+      RIBBON_LENGTH,
+      0.022,
+      18,
+      1
+    );
+    geometry.setAttribute(
+      "aPhase",
+      new InstancedBufferAttribute(phases, 1)
+    );
+    geometry.setAttribute(
+      "aAmp",
+      new InstancedBufferAttribute(amplitudes, 1)
+    );
+    const uniforms = {
+      uTime: { value: 0 },
+      uWave: { value: 0 },
+      uOpacity: { value: 0 },
+      uColor: { value: new Color(13616562) }
+    };
+    const material = new ShaderMaterial({
+      uniforms,
+      vertexShader: VERT2,
+      fragmentShader: FRAG2,
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide
+    });
+    const mesh = new InstancedMesh(geometry, material, COUNT);
+    mesh.name = "Wind";
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    scene2.add(mesh);
     let intensity = 0;
+    let gust = 0;
     let time = 0;
     let spawned = false;
     function respawn2(particle, camera2, windX, windZ, initial) {
@@ -28326,9 +28382,11 @@
     function update(dt, cameraPosition, active) {
       time += dt;
       const target = active ? 1 : 0;
-      const ease = 1 - Math.exp(-dt * (active ? 2.4 : 5));
-      intensity += (target - intensity) * ease;
-      material.opacity = intensity * 0.46;
+      intensity += (target - intensity) * (1 - Math.exp(-dt * (active ? 1 : 2.2)));
+      gust += (target - gust) * (1 - Math.exp(-dt * (active ? 0.85 : 2.2)));
+      uniforms.uTime.value = time;
+      uniforms.uWave.value = gust;
+      uniforms.uOpacity.value = intensity * 0.46;
       mesh.visible = intensity > 0.01;
       if (!mesh.visible)
         return;
@@ -28342,12 +28400,13 @@
           respawn2(particle, cameraPosition, windX, windZ, true);
         }
       }
+      const speedScale = 0.15 + 0.85 * gust;
       for (let i = 0; i < particles.length; i++) {
         const particle = particles[i];
         particle.age += dt;
         const sway = Math.sin(particle.age * 4.5 + particle.phase);
-        particle.x += (windX * particle.speed + windZ * particle.drift * sway) * dt;
-        particle.z += (windZ * particle.speed - windX * particle.drift * sway) * dt;
+        particle.x += (windX * particle.speed * speedScale + windZ * particle.drift * sway) * dt;
+        particle.z += (windZ * particle.speed * speedScale - windX * particle.drift * sway) * dt;
         particle.y += (sway * 0.35 + 0.12) * dt;
         const dx = particle.x - cameraPosition.x;
         const dz = particle.z - cameraPosition.z;
@@ -29645,7 +29704,7 @@
   var EYE_HEIGHT = 1.6;
   var PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
   var COMMIT_DISTANCE = 3.4;
-  var STRANDED_SCREEN_DELAY = 2.4;
+  var STRANDED_SCREEN_DELAY = 4.2;
   var state = {
     playing: false,
     gameOver: false,
@@ -30155,8 +30214,8 @@
   function updateStranded(dt) {
     state.deathTime += dt;
     const t = state.deathTime;
-    const fade = Math.max(0, 1 - t / 0.9);
-    const sputter = t < 0.9 ? 0.65 + 0.35 * Math.sin(t * 46) : 0;
+    const fade = Math.max(0, 1 - t / 2.8);
+    const sputter = t < 2.8 ? 0.55 + 0.45 * Math.sin(t * 26 + 1.2) : 0;
     light.intensity = 44 * fade * sputter;
     if (fade <= 0 && flame.mesh.visible)
       flame.setVisible(false);
@@ -30176,6 +30235,7 @@
     UI.instructions.style.display = "none";
     UI.message.style.display = "none";
     UI.overlay.classList.remove("menu", "is-leaving");
+    UI.overlay.classList.add("stranded");
     UI.overlay.innerHTML = `
     <h1 style="color:#d98b6a">You are stranded</h1>
     <p>The wind took your diyo. The forest keeps what it catches.</p>
@@ -30227,6 +30287,7 @@
     if (intro)
       intro.handLight.intensity = 4.6;
     UI.overlay.style.display = "none";
+    UI.overlay.classList.remove("stranded");
     UI.overlay.innerHTML = "";
     UI.message.style.display = "none";
     try {
@@ -30402,7 +30463,12 @@
       flame.uniforms.uIntensity.value *= intro.flameBoost;
     }
     if (handFill) {
-      const target = state.cinematic ? intro && intro.lit ? 3 : 0.15 : state.playing && !state.stranded ? 3 : 0;
+      let target = 0;
+      if (state.cinematic) {
+        target = intro && intro.lit ? 3 : 0.15;
+      } else if (state.playing) {
+        target = state.stranded ? 3 * Math.max(0, 1 - state.deathTime / 2.8) : 3;
+      }
       handFill.intensity += (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
     }
     if (handBaseReady && !state.cinematic) {

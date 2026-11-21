@@ -1,16 +1,17 @@
 /**
  * Wind gust effect for the stranded sequence.
  *
- * A single instanced mesh draws a few hundred thin, camera-facing ribbons
- * that stream past the player. Each ribbon is aligned to the gust direction
- * and to the camera so it stays visible from any angle. The system is inert
- * (and skipped entirely) until the intensity rises.
+ * One instanced mesh draws a few hundred camera-facing ribbons. The ribbons
+ * are bent into a travelling S-curve in the vertex shader, so they read as
+ * wind rather than straight streaks, and both the gust speed and the wave
+ * amplitude ramp up as the storm builds.
  */
 import * as THREE from './vendor/three.module.js';
 
 const COUNT = 240;
 const RANGE = 11;
 const CEILING = 4.2;
+const RIBBON_LENGTH = 0.82;
 
 const _matrix = new THREE.Matrix4();
 const _basisX = new THREE.Vector3();
@@ -19,27 +20,46 @@ const _basisZ = new THREE.Vector3();
 const _scale = new THREE.Vector3();
 const _wind = new THREE.Vector3();
 
+const VERT = `
+  uniform float uTime;
+  uniform float uWave;
+  attribute float aPhase;
+  attribute float aAmp;
+  varying float vEdge;
+
+  void main() {
+    vec3 transformed = position;
+    float edge = abs(position.x) / ${(RIBBON_LENGTH / 2).toFixed(3)};
+    float wave = sin(
+      position.x * (7.0 + 5.0 * uWave) +
+      uTime * (4.0 + 7.0 * uWave) +
+      aPhase
+    );
+    transformed.y +=
+      wave * aAmp * (0.35 + 0.65 * edge) * (0.5 + 0.8 * uWave);
+    vEdge = 1.0 - smoothstep(0.55, 1.0, edge);
+    #include <project_vertex>
+  }
+`;
+
+const FRAG = `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vEdge;
+
+  void main() {
+    gl_FragColor = vec4(uColor, uOpacity * vEdge);
+  }
+`;
+
 function randomBetween(lo, hi) {
   return lo + Math.random() * (hi - lo);
 }
 
 export function createWind(scene) {
-  const geometry = new THREE.PlaneGeometry(0.62, 0.018);
-  const material = new THREE.MeshBasicMaterial({
-    color: 0xcfc5b2,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    side: THREE.DoubleSide
-  });
-
-  const mesh = new THREE.InstancedMesh(geometry, material, COUNT);
-  mesh.name = 'Wind';
-  mesh.frustumCulled = false;
-  mesh.visible = false;
-  scene.add(mesh);
-
   const particles = [];
+  const phases = new Float32Array(COUNT);
+  const amplitudes = new Float32Array(COUNT);
   for (let i = 0; i < COUNT; i++) {
     particles.push({
       x: 0,
@@ -51,9 +71,48 @@ export function createWind(scene) {
       drift: randomBetween(-0.6, 0.6),
       age: randomBetween(0, 4)
     });
+    phases[i] = randomBetween(0, Math.PI * 2);
+    amplitudes[i] = randomBetween(0.025, 0.085);
   }
 
+  const geometry = new THREE.PlaneGeometry(
+    RIBBON_LENGTH,
+    0.022,
+    18,
+    1
+  );
+  geometry.setAttribute(
+    'aPhase',
+    new THREE.InstancedBufferAttribute(phases, 1)
+  );
+  geometry.setAttribute(
+    'aAmp',
+    new THREE.InstancedBufferAttribute(amplitudes, 1)
+  );
+
+  const uniforms = {
+    uTime: { value: 0 },
+    uWave: { value: 0 },
+    uOpacity: { value: 0 },
+    uColor: { value: new THREE.Color(0xcfc5b2) }
+  };
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: VERT,
+    fragmentShader: FRAG,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const mesh = new THREE.InstancedMesh(geometry, material, COUNT);
+  mesh.name = 'Wind';
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+  scene.add(mesh);
+
   let intensity = 0;
+  let gust = 0;
   let time = 0;
   let spawned = false;
 
@@ -72,11 +131,18 @@ export function createWind(scene) {
   function update(dt, cameraPosition, active) {
     time += dt;
     const target = active ? 1 : 0;
-    const ease = 1 - Math.exp(-dt * (active ? 2.4 : 5.0));
-    intensity += (target - intensity) * ease;
-    material.opacity = intensity * 0.46;
-    mesh.visible = intensity > 0.01;
 
+    // The gust takes several seconds to arrive, and the streaks themselves
+    // start as a slow drift before the full speed comes up.
+    intensity +=
+      (target - intensity) * (1 - Math.exp(-dt * (active ? 1.0 : 2.2)));
+    gust +=
+      (target - gust) * (1 - Math.exp(-dt * (active ? 0.85 : 2.2)));
+
+    uniforms.uTime.value = time;
+    uniforms.uWave.value = gust;
+    uniforms.uOpacity.value = intensity * 0.46;
+    mesh.visible = intensity > 0.01;
     if (!mesh.visible) return;
 
     const windAngle = 0.72 + Math.sin(time * 0.31) * 0.22;
@@ -91,13 +157,19 @@ export function createWind(scene) {
       }
     }
 
+    const speedScale = 0.15 + 0.85 * gust;
+
     for (let i = 0; i < particles.length; i++) {
       const particle = particles[i];
       particle.age += dt;
 
       const sway = Math.sin(particle.age * 4.5 + particle.phase);
-      particle.x += (windX * particle.speed + windZ * particle.drift * sway) * dt;
-      particle.z += (windZ * particle.speed - windX * particle.drift * sway) * dt;
+      particle.x +=
+        (windX * particle.speed * speedScale +
+          windZ * particle.drift * sway) * dt;
+      particle.z +=
+        (windZ * particle.speed * speedScale -
+          windX * particle.drift * sway) * dt;
       particle.y += (sway * 0.35 + 0.12) * dt;
 
       const dx = particle.x - cameraPosition.x;

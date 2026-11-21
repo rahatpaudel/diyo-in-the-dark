@@ -118,6 +118,58 @@ body {
   gap: 14px;
 }
 
+/* Stranded screen: the veil settles in while the title etches into place. */
+#overlay.stranded {
+  animation: stranded-veil 900ms ease-out both;
+}
+
+#overlay.stranded h1 {
+  animation: stranded-title 1500ms cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+
+#overlay.stranded p {
+  animation: stranded-rise 1100ms ease-out 600ms both;
+}
+
+#overlay.stranded .overlay-actions {
+  animation: stranded-rise 1100ms ease-out 1050ms both;
+}
+
+@keyframes stranded-veil {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes stranded-title {
+  0% {
+    opacity: 0;
+    transform: translateY(22px);
+    letter-spacing: 14px;
+    filter: blur(10px);
+  }
+  55% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: 4px;
+    filter: blur(0);
+  }
+}
+
+@keyframes stranded-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 #boot-error {
   display: none;
   margin-top: 18px;

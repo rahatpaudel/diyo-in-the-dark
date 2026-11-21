@@ -23,7 +23,7 @@ const PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
 // edge can never be mistaken for choosing a decoy.
 const COMMIT_DISTANCE = 3.4;
 // Time for the gust to rise and the diya to die before the screen appears.
-const STRANDED_SCREEN_DELAY = 2.4;
+const STRANDED_SCREEN_DELAY = 4.2;
 
 const state = {
   playing: false,
@@ -761,9 +761,9 @@ function updateStranded(dt) {
   state.deathTime += dt;
   const t = state.deathTime;
 
-  // The flame gutters, then the light is gone.
-  const fade = Math.max(0, 1 - t / 0.9);
-  const sputter = t < 0.9 ? 0.65 + 0.35 * Math.sin(t * 46) : 0;
+  // The flame gutters for a while, then the light is gone.
+  const fade = Math.max(0, 1 - t / 2.8);
+  const sputter = t < 2.8 ? 0.55 + 0.45 * Math.sin(t * 26 + 1.2) : 0;
   light.intensity = 44 * fade * sputter;
   if (fade <= 0 && flame.mesh.visible) flame.setVisible(false);
   if (intro) intro.handLight.intensity = 4.6 * fade;
@@ -782,6 +782,7 @@ function showStrandedScreen() {
   UI.instructions.style.display = 'none';
   UI.message.style.display = 'none';
   UI.overlay.classList.remove('menu', 'is-leaving');
+  UI.overlay.classList.add('stranded');
   UI.overlay.innerHTML = `
     <h1 style="color:#d98b6a">You are stranded</h1>
     <p>The wind took your diyo. The forest keeps what it catches.</p>
@@ -839,6 +840,7 @@ function respawn() {
   if (intro) intro.handLight.intensity = 4.6;
 
   UI.overlay.style.display = 'none';
+  UI.overlay.classList.remove('stranded');
   UI.overlay.innerHTML = '';
   UI.message.style.display = 'none';
 
@@ -1076,9 +1078,14 @@ function animate() {
   // Keep the ceremony's pre-ignition shot dark: the hand fill only comes up
   // once the match actually catches.
   if (handFill) {
-    const target = state.cinematic
-      ? (intro && intro.lit ? 3.0 : 0.15)
-      : (state.playing && !state.stranded ? 3.0 : 0);
+    let target = 0;
+    if (state.cinematic) {
+      target = intro && intro.lit ? 3.0 : 0.15;
+    } else if (state.playing) {
+      target = state.stranded
+        ? 3.0 * Math.max(0, 1 - state.deathTime / 2.8)
+        : 3.0;
+    }
     handFill.intensity +=
       (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
   }
