@@ -82,6 +82,7 @@ const UI = {
 let scene, camera, renderer, clock;
 let light, house, flame, handFill, handFlame, wind, audio;
 let fireworks, endingCam;
+let endingHandMats = [];
 let houseBulbs = [];
 let houseLights = [];
 let houseGlow = [];
@@ -992,6 +993,26 @@ function startEnding() {
     house.position.y + 14,
     house.position.z + 8.5
   );
+  // The hands carry a faint self-emissive so they read in the dark. Capture
+  // it so the HUD diya can fade all the way out, not just lose its lights.
+  endingHandMats = [];
+  if (intro && intro.rightHand) {
+    intro.rightHand.traverse((child) => {
+      if (!child.isMesh) return;
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+      for (const material of materials) {
+        if (material && material.emissive) {
+          endingHandMats.push({
+            material,
+            base: material.emissiveIntensity
+          });
+        }
+      }
+    });
+  }
+
   const from = camera.position.clone();
   endingCam = {
     from,
@@ -1063,7 +1084,13 @@ function updateEnding(dt) {
   const hudFade = Math.max(0, 1 - t / 1.6);
   light.intensity = 44 * flame.flicker * hudFade;
   if (intro) intro.handLight.intensity = 4.6 * hudFade;
-  if (t > 1.6 && flame.mesh.visible) flame.setVisible(false);
+  for (const entry of endingHandMats) {
+    entry.material.emissiveIntensity = entry.base * hudFade;
+  }
+  if (t > 1.6) {
+    if (flame.mesh.visible) flame.setVisible(false);
+    if (intro && intro.rightHand.visible) intro.rightHand.visible = false;
+  }
 
   if (t >= WIN_SCREEN_DELAY) showWinScreen();
 }
@@ -1084,6 +1111,7 @@ function showWinScreen() {
   light.intensity = 0;
   if (intro) intro.handLight.intensity = 0;
   if (flame.mesh.visible) flame.setVisible(false);
+  if (intro && intro.rightHand.visible) intro.rightHand.visible = false;
 
   UI.overlay.innerHTML = `
     <h1 style="color:#ffd27a">You win</h1>

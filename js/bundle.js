@@ -30066,6 +30066,7 @@
   var audio;
   var fireworks;
   var endingCam;
+  var endingHandMats = [];
   var houseBulbs = [];
   var houseLights = [];
   var houseGlow = [];
@@ -30733,6 +30734,22 @@
       house.position.y + 14,
       house.position.z + 8.5
     );
+    endingHandMats = [];
+    if (intro && intro.rightHand) {
+      intro.rightHand.traverse((child) => {
+        if (!child.isMesh)
+          return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          if (material && material.emissive) {
+            endingHandMats.push({
+              material,
+              base: material.emissiveIntensity
+            });
+          }
+        }
+      });
+    }
     const from = camera.position.clone();
     endingCam = {
       from,
@@ -30792,8 +30809,15 @@
     light.intensity = 44 * flame.flicker * hudFade;
     if (intro)
       intro.handLight.intensity = 4.6 * hudFade;
-    if (t > 1.6 && flame.mesh.visible)
-      flame.setVisible(false);
+    for (const entry of endingHandMats) {
+      entry.material.emissiveIntensity = entry.base * hudFade;
+    }
+    if (t > 1.6) {
+      if (flame.mesh.visible)
+        flame.setVisible(false);
+      if (intro && intro.rightHand.visible)
+        intro.rightHand.visible = false;
+    }
     if (t >= WIN_SCREEN_DELAY)
       showWinScreen();
   }
@@ -30815,6 +30839,8 @@
       intro.handLight.intensity = 0;
     if (flame.mesh.visible)
       flame.setVisible(false);
+    if (intro && intro.rightHand.visible)
+      intro.rightHand.visible = false;
     UI.overlay.innerHTML = `
     <h1 style="color:#ffd27a">You win</h1>
     <p>The house answers your little flame with every colour it has.</p>
