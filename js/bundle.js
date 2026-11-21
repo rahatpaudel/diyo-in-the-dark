@@ -19251,53 +19251,6 @@
       });
     }
   }
-  var CircleGeometry = class _CircleGeometry extends BufferGeometry {
-    constructor(radius = 1, segments = 32, thetaStart = 0, thetaLength = Math.PI * 2) {
-      super();
-      this.type = "CircleGeometry";
-      this.parameters = {
-        radius,
-        segments,
-        thetaStart,
-        thetaLength
-      };
-      segments = Math.max(3, segments);
-      const indices = [];
-      const vertices = [];
-      const normals = [];
-      const uvs = [];
-      const vertex2 = new Vector3();
-      const uv = new Vector2();
-      vertices.push(0, 0, 0);
-      normals.push(0, 0, 1);
-      uvs.push(0.5, 0.5);
-      for (let s = 0, i = 3; s <= segments; s++, i += 3) {
-        const segment = thetaStart + s / segments * thetaLength;
-        vertex2.x = radius * Math.cos(segment);
-        vertex2.y = radius * Math.sin(segment);
-        vertices.push(vertex2.x, vertex2.y, vertex2.z);
-        normals.push(0, 0, 1);
-        uv.x = (vertices[i] / radius + 1) / 2;
-        uv.y = (vertices[i + 1] / radius + 1) / 2;
-        uvs.push(uv.x, uv.y);
-      }
-      for (let i = 1; i <= segments; i++) {
-        indices.push(i, i + 1, 0);
-      }
-      this.setIndex(indices);
-      this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
-      this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
-      this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-    }
-    copy(source) {
-      super.copy(source);
-      this.parameters = Object.assign({}, source.parameters);
-      return this;
-    }
-    static fromJSON(data) {
-      return new _CircleGeometry(data.radius, data.segments, data.thetaStart, data.thetaLength);
-    }
-  };
   var CylinderGeometry = class _CylinderGeometry extends BufferGeometry {
     constructor(radiusTop = 1, radiusBottom = 1, height = 1, radialSegments = 32, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
       super();
@@ -25235,7 +25188,7 @@
   var RIGHT_URL = HAND_DIR + "hand_right.glb";
   var RIGHT_POSE = {
     position: [0.43, -0.45, -0.13],
-    rotation: [-0.02, 0, 0],
+    rotation: [0, 0, 0],
     scale: 0.8
   };
   var RIGHT_CARRY_POSE = {
@@ -25252,7 +25205,7 @@
   var STRIKE_ROT = [0.16, -0.7, 0.05];
   var STRIKE_SCALE = 0.9;
   var LIGHT_ROT = [-0.06, -0.34, 0.04];
-  var LIGHT_SCALE = 0.72;
+  var LIGHT_SCALE = 0.9;
   var APPROACH_ROT = [0.3, -0.5, 0.1];
   var FLAME_MATCH_SCALE = 0.5;
   var MAX_STRIKE_REACH = 1;
@@ -25343,23 +25296,69 @@
           edges.set(k, { a: u, b: v, n: 1 });
       }
     }
-    const loop = [];
+    const adj = /* @__PURE__ */ new Map();
+    const link = (a, b) => {
+      const list = adj.get(a);
+      if (list)
+        list.push(b);
+      else
+        adj.set(a, [b]);
+    };
+    let boundaryCount = 0;
+    let first = -1;
     for (const edge of edges.values()) {
-      if (edge.n === 1)
-        loop.push(edge.a, edge.b);
+      if (edge.n !== 1)
+        continue;
+      link(edge.a, edge.b);
+      link(edge.b, edge.a);
+      if (first < 0)
+        first = edge.a;
+      boundaryCount++;
     }
-    if (loop.length < 8)
+    if (boundaryCount < 8)
       return;
-    const mn = new Vector3(Infinity, Infinity, Infinity);
-    const mx = new Vector3(-Infinity, -Infinity, -Infinity);
-    const p = new Vector3();
-    for (const i of loop) {
-      p.fromBufferAttribute(pos, i);
-      mn.min(p);
-      mx.max(p);
+    const ring = [first];
+    let prev = -1;
+    let cur = first;
+    let closed = false;
+    for (let i = 0; i < boundaryCount; i++) {
+      const nbrs = adj.get(cur);
+      if (!nbrs || nbrs.length !== 2)
+        break;
+      const next = nbrs[0] === prev ? nbrs[1] : nbrs[0];
+      if (next === first) {
+        closed = true;
+        break;
+      }
+      ring.push(next);
+      prev = cur;
+      cur = next;
     }
+    if (!closed || ring.length !== boundaryCount)
+      return;
+    const p = new Vector3();
+    const center = new Vector3();
+    for (const i of ring) {
+      p.fromBufferAttribute(pos, i);
+      center.add(p);
+    }
+    center.multiplyScalar(1 / ring.length);
+    center.z -= 2e-3;
+    const verts = [center.x, center.y, center.z];
+    for (const i of ring) {
+      p.fromBufferAttribute(pos, i);
+      verts.push(p.x, p.y, p.z);
+    }
+    const faces = [];
+    for (let i = 0; i < ring.length; i++) {
+      faces.push(0, 1 + i, 1 + (i + 1) % ring.length);
+    }
+    const capGeo = new BufferGeometry();
+    capGeo.setAttribute("position", new Float32BufferAttribute(verts, 3));
+    capGeo.setIndex(faces);
+    capGeo.computeVertexNormals();
     const cap = new Mesh(
-      new CircleGeometry(1, 32),
+      capGeo,
       new MeshStandardMaterial({
         color: 1181957,
         roughness: 1,
@@ -25368,8 +25367,6 @@
       })
     );
     cap.name = "left_forearm_cap";
-    cap.position.set((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z - 3e-3);
-    cap.scale.set((mx.x - mn.x) / 2, (mx.y - mn.y) / 2, 1);
     cap.frustumCulled = false;
     arm.add(cap);
   }

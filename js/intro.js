@@ -25,12 +25,11 @@ const LEFT_URL = HAND_DIR + 'hand_left.glb';
 const RIGHT_URL = HAND_DIR + 'hand_right.glb';
 
 // The right hand's fixed HUD pose. These values put the diya wick at roughly
-// (0.45, -0.30, -1.0) in camera space, which is the same bottom-right spot
-// the standalone flame used to occupy. The bowl is all but level: a degree of
-// forward tip keeps the rim readable without making it look poured.
+// (0.45, -0.29, -1.0) in camera space, which is the same bottom-right spot the
+// standalone flame used to occupy. The bowl is level in this resting form.
 const RIGHT_POSE = {
   position: [0.43, -0.45, -0.13],
-  rotation: [-0.02, 0, 0],
+  rotation: [0, 0, 0],
   scale: 0.8
 };
 
@@ -62,9 +61,11 @@ const STRIKE_PITCH = -0.25;
 const STRIKE_ROT = [0.16, -0.7, 0.05];
 const STRIKE_SCALE = 0.9;
 
-// Pose used while carrying the match to the diya.
+// Pose used while carrying the match to the diya. The hand stays at the same
+// size as the strike so its cut-off forearm end sits behind the lens instead
+// of opening into view.
 const LIGHT_ROT = [-0.06, -0.34, 0.04];
-const LIGHT_SCALE = 0.72;
+const LIGHT_SCALE = 0.9;
 
 // The hand enters already rotating toward the stone, then settles into the
 // strike grip as it lands. Starting from the grip itself makes the entry read
@@ -203,23 +204,70 @@ function capOpenEnd(root) {
     }
   }
 
-  const loop = [];
+  // Order the boundary vertices into a ring, then fill that exact outline.
+  // A plain ellipse only covers the middle of the opening; at a glancing
+  // angle its corners leave slivers of the hollow interior visible.
+  const adj = new Map();
+  const link = (a, b) => {
+    const list = adj.get(a);
+    if (list) list.push(b);
+    else adj.set(a, [b]);
+  };
+  let boundaryCount = 0;
+  let first = -1;
   for (const edge of edges.values()) {
-    if (edge.n === 1) loop.push(edge.a, edge.b);
+    if (edge.n !== 1) continue;
+    link(edge.a, edge.b);
+    link(edge.b, edge.a);
+    if (first < 0) first = edge.a;
+    boundaryCount++;
   }
-  if (loop.length < 8) return;
+  if (boundaryCount < 8) return;
 
-  const mn = new THREE.Vector3(Infinity, Infinity, Infinity);
-  const mx = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
-  const p = new THREE.Vector3();
-  for (const i of loop) {
-    p.fromBufferAttribute(pos, i);
-    mn.min(p);
-    mx.max(p);
+  const ring = [first];
+  let prev = -1;
+  let cur = first;
+  let closed = false;
+  for (let i = 0; i < boundaryCount; i++) {
+    const nbrs = adj.get(cur);
+    if (!nbrs || nbrs.length !== 2) break;
+    const next = nbrs[0] === prev ? nbrs[1] : nbrs[0];
+    if (next === first) {
+      closed = true;
+      break;
+    }
+    ring.push(next);
+    prev = cur;
+    cur = next;
   }
+  if (!closed || ring.length !== boundaryCount) return;
+
+  const p = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  for (const i of ring) {
+    p.fromBufferAttribute(pos, i);
+    center.add(p);
+  }
+  center.multiplyScalar(1 / ring.length);
+  center.z -= 0.002;
+
+  const verts = [center.x, center.y, center.z];
+  for (const i of ring) {
+    p.fromBufferAttribute(pos, i);
+    verts.push(p.x, p.y, p.z);
+  }
+  const faces = [];
+  for (let i = 0; i < ring.length; i++) {
+    faces.push(0, 1 + i, 1 + ((i + 1) % ring.length));
+  }
+
+  const capGeo = new THREE.BufferGeometry();
+  capGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  capGeo.setIndex(faces);
+  capGeo.computeVertexNormals();
 
   const cap = new THREE.Mesh(
-    new THREE.CircleGeometry(1, 32),
+    capGeo,
     new THREE.MeshStandardMaterial({
       color: 0x120905,
       roughness: 1,
@@ -228,8 +276,6 @@ function capOpenEnd(root) {
     })
   );
   cap.name = 'left_forearm_cap';
-  cap.position.set((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z - 0.003);
-  cap.scale.set((mx.x - mn.x) / 2, (mx.y - mn.y) / 2, 1);
   cap.frustumCulled = false;
   arm.add(cap);
 }
