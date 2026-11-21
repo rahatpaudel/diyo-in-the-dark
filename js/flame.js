@@ -136,11 +136,13 @@ const FRAG = `
     spine += sin(t * 2.45 - H * 2.6 + 1.7) * 0.008 * H;
     spine += sin(t * 5.2 + H * 3.6 + 0.7) * 0.011 * uFlutter * H;
 
-    // Teardrop half-width: pinched at the wick, fullest just above it, then
-    // closing in a rounded point instead of a needle.
-    float rise = smoothstep(0.0, 0.22, H);
-    float fall = 1.0 - smoothstep(0.22, 1.0, H);
-    float R = 0.155 * pow(rise, 0.55) * pow(fall, 0.85) + 0.003;
+    // Plump teardrop: pinched at the wick, a gentle taper, then a circular cap
+    // so the top reads round rather than pointed.
+    float rise = smoothstep(0.0, 0.18, H);
+    float taper = 1.0 - 0.50 * smoothstep(0.20, 0.76, H);
+    float capT = clamp((H - 0.72) / 0.28, 0.0, 1.0);
+    float cap = sqrt(max(0.0, 1.0 - capT * capT));
+    float R = 0.16 * pow(rise, 0.52) * taper * cap + 0.004;
 
     // Mild dither only: full per-pixel jitter reads as grain on a flame this
     // small.
@@ -171,7 +173,7 @@ const FRAG = `
 
       // The noise pushes the silhouette itself, so the outline licks and
       // curls instead of staying a perfect teardrop.
-      float rmod = 0.86 + (0.34 + 0.16 * uFlutter) * (n - 0.5) * 2.0;
+      float rmod = 0.90 + (0.20 + 0.22 * uFlutter) * (n - 0.5) * 2.0;
       float rad = sqrt(rx * rx + rz * rz) / rmod;
 
       float env = 1.0 - smoothstep(0.36, 1.05, rad);
@@ -180,11 +182,11 @@ const FRAG = `
       body *= 1.0 - smoothstep(0.80, 1.08, yv);
       body = clamp(body, 0.0, 1.0);
 
-      // Hottest just above the wick; the tip still glows dull orange.
-      float core = 1.0 - smoothstep(0.0, 0.90, rad);
-      float heat = core * (1.0 - smoothstep(0.12, 0.98, H));
-      heat = clamp(pow(max(heat, 0.0), 0.85) * 1.18 + 0.12
-                   + 0.09 * (n - 0.5), 0.0, 1.0);
+      // Broad, nearly uniform glow with a warmer skin at the silhouette.
+      float core = 1.0 - smoothstep(0.20, 1.10, rad);
+      float heat = 0.62 + 0.38 * core;
+      heat *= 1.0 - 0.10 * smoothstep(0.45, 1.0, H);
+      heat = clamp(heat + 0.05 * (n - 0.5), 0.0, 1.0);
 
       vec3 emit = blackbody(heat);
       // Blue root where the wick feeds the flame.
@@ -194,7 +196,7 @@ const FRAG = `
 
       float sigma = body * 2.6;
       float aStep = 1.0 - exp(-sigma * DZ);
-      acc += trans * emit * (1.0 + 3.0 * heat) * body * DZ * 2.2;
+      acc += trans * emit * (1.0 + 2.6 * heat) * body * DZ * 1.75;
       trans *= 1.0 - aStep;
     }
 
@@ -259,10 +261,16 @@ export function createFlame(camera) {
     lastMotion.speed = m.speed || 0;
 
     // Turn and strafing tilt the flame clearly; walking forward or backward
-    // is deliberately ignored so the plume does not lean on its own.
+    // tips it down or up without shifting the plume sideways.
     target.set(
       clamp(-lastMotion.localX * 0.03 + lastMotion.yawDelta * 2.0, -0.15, 0.15),
-      clamp(-lastMotion.localY * 0.004 - lastMotion.pitchDelta * 0.45, -0.09, 0.09)
+      clamp(
+        -lastMotion.localY * 0.004 -
+          lastMotion.pitchDelta * 0.45 -
+          lastMotion.localZ * 0.02,
+        -0.1,
+        0.1
+      )
     );
 
     // Heavily damped spring with substeps, stable across long frames.
@@ -327,15 +335,16 @@ export function createFlame(camera) {
   }
 
   /**
-   * Place the flame so its wick (volume y = 0) sits exactly at a point in
-   * camera space. The shader's volume origin is 26% up the quad, which is
-   * why the mesh itself is offset upward by that fraction of its height.
+   * Place the flame so its wick (volume y = 0) sits at a point in camera
+   * space. The shader's volume origin is 26% up the quad; the offset is
+   * biased slightly lower so the glowing base overlaps the wick rather than
+   * leaving a hairline gap.
    */
   function setWickPosition(x, y, z, scale = 1) {
     const s = scale > 0 ? scale : 1;
     currentScale = s;
     mesh.scale.setScalar(s);
-    mesh.position.set(x, y + 0.0864 * s, z);
+    mesh.position.set(x, y + 0.077 * s, z);
   }
 
   function dispose() {

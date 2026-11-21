@@ -96,6 +96,12 @@ const RECOIL_PULL = 0.05;
 const TRANSFER_DIP_Y = -0.012;
 const TRANSFER_DIP_Z = 0.006;
 
+// Where the match tip meets the diya. It arrives just above the wick and the
+// transfer dip presses it down onto the wick, so the flame actually catches
+// instead of hovering.
+const WICK_MEET_Y = 0.006;
+const WICK_MEET_Z = 0.015;
+
 // How much of the turn toward the carry grip happens during the recoil, before
 // the long arc to the diya starts.
 const RECOIL_ROT_BLEND = 0.22;
@@ -533,7 +539,11 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     // carry pose against the wick where it will actually be.
     applyRightPose(RIGHT_CARRY_POSE);
     wickInCamera(wickNow);
-    carryTarget.set(wickNow.x, wickNow.y + 0.065, wickNow.z + 0.015);
+    carryTarget.set(
+      wickNow.x,
+      wickNow.y + WICK_MEET_Y,
+      wickNow.z + WICK_MEET_Z
+    );
     solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
     lightPos.copy(left.position);
 
@@ -670,7 +680,11 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     // match travels over, then returns to its resting HUD pose.
     poseRight(time);
     wickInCamera(wickNow);
-    carryTarget.set(wickNow.x, wickNow.y + 0.065, wickNow.z + 0.015);
+    carryTarget.set(
+      wickNow.x,
+      wickNow.y + WICK_MEET_Y,
+      wickNow.z + WICK_MEET_Z
+    );
 
     const recoilRot0 = lerp(STRIKE_ROT[0], LIGHT_ROT[0], RECOIL_ROT_BLEND);
     const recoilRot1 = lerp(STRIKE_ROT[1], LIGHT_ROT[1], RECOIL_ROT_BLEND);
