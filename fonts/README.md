@@ -7,7 +7,7 @@ renders identically from `file://` and `http://` with no network access.
 | --- | --- | --- |
 | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) | the "LOADING" line | SIL Open Font License 1.1 — `OFL-JetBrainsMono.txt` |
 | [Yatra One](https://github.com/google/fonts/tree/main/ofl/yatraone) | the "एकैछिन है" line | SIL Open Font License 1.1 — `OFL-YatraOne.txt` |
-| [Noto Sans Devanagari](https://fonts.google.com/noto/specimen/Noto+Sans+Devanagari) | numerals, titles, and Nepali answer words on the riddle signs | SIL Open Font License 1.1 — `OFL-NotoSansDevanagari.txt` |
+| [Noto Sans Devanagari](https://fonts.google.com/noto/specimen/Noto+Sans+Devanagari) | numerals, titles, and Nepali answer words on the riddle signs, plus the home-screen eyebrow | SIL Open Font License 1.1 — `OFL-NotoSansDevanagari.txt` |
 
 Each face is subsetted down to the handful of glyphs it needs and inlined as a
 base64 `data:` URL: the loader faces in `loading.css` (~6 KB for both), and the
