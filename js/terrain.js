@@ -6,11 +6,10 @@
 import * as THREE from './vendor/three.module.js';
 import {
   nearestPath,
-  nearestDecision,
   PATH_SAMPLES,
   PATH_BRANCHES,
-  PATH_DECISIONS,
-  PATH_HALF_WIDTH
+  PATH_HALF_WIDTH,
+  HOUSE_POINT
 } from './path.js';
 
 const SIZE = 220;
@@ -130,18 +129,13 @@ function finalHeight(x, z) {
     h = mix(h, near.sample.h, blend);
   }
 
-  const node = nearestDecision(x, z, 5);
-  if (node) {
-    const blend = 1 - smooth(clamp01((node.dist - 2.4) / 1.8));
-    h = mix(h, macroHeight(node.node.x, node.node.z), blend);
-  }
 
   // Keep the opening strike framing and the house on level ground.
   const spawn = Math.hypot(x, z);
   const spawnBlend = 1 - smooth(clamp01((spawn - 4.5) / 4.5));
   h = mix(h, 0, spawnBlend);
 
-  const house = Math.hypot(x - 25, z - 25);
+  const house = Math.hypot(x - HOUSE_POINT.x, z - HOUSE_POINT.z);
   const houseBlend = 1 - smooth(clamp01((house - 4.5) / 4.0));
   h = mix(h, 0, houseBlend);
 
@@ -251,30 +245,29 @@ function createGroundTextures(renderer) {
   const coreWidth = ((PATH_HALF_WIDTH * 2) / SIZE) * maskSize;
 
   for (const branch of PATH_BRANCHES) {
-    pctx.strokeStyle = 'rgb(48, 48, 48)';
-    pctx.lineWidth = coreWidth * 1.18;
-    pctx.beginPath();
-    branch.samples.forEach((s, i) => {
-      if (i === 0) pctx.moveTo(px(s.x), py(s.z));
-      else pctx.lineTo(px(s.x), py(s.z));
-    });
-    pctx.stroke();
+    for (let i = 1; i < branch.samples.length; i++) {
+      const a = branch.samples[i - 1];
+      const b = branch.samples[i];
+      const wave =
+        0.9 +
+        0.16 * Math.sin(i * 0.37 + branch.id.length) +
+        0.06 * Math.sin(i * 1.73);
+      const w = coreWidth * wave;
 
-    pctx.strokeStyle = 'rgb(255, 255, 255)';
-    pctx.lineWidth = coreWidth;
-    pctx.beginPath();
-    branch.samples.forEach((s, i) => {
-      if (i === 0) pctx.moveTo(px(s.x), py(s.z));
-      else pctx.lineTo(px(s.x), py(s.z));
-    });
-    pctx.stroke();
-  }
+      pctx.strokeStyle = 'rgb(48, 48, 48)';
+      pctx.lineWidth = w * 1.18;
+      pctx.beginPath();
+      pctx.moveTo(px(a.x), py(a.z));
+      pctx.lineTo(px(b.x), py(b.z));
+      pctx.stroke();
 
-  for (const d of PATH_DECISIONS) {
-    pctx.fillStyle = 'rgb(44, 44, 44)';
-    pctx.beginPath();
-    pctx.arc(px(d.x), py(d.z), (3.0 / SIZE) * maskSize, 0, Math.PI * 2);
-    pctx.fill();
+      pctx.strokeStyle = 'rgb(255, 255, 255)';
+      pctx.lineWidth = w;
+      pctx.beginPath();
+      pctx.moveTo(px(a.x), py(a.z));
+      pctx.lineTo(px(b.x), py(b.z));
+      pctx.stroke();
+    }
   }
 
   // Dedicated warm dirt tile for the path overlay.
@@ -466,7 +459,6 @@ export function buildTerrain(scene, renderer) {
   const cSoil = new THREE.Color(0xb7a184);
   const cMoss = new THREE.Color(0x9caf82);
   const cLeaf = new THREE.Color(0xa98a68);
-  const cPath = new THREE.Color(0xd0a877);
   const c = new THREE.Color();
   const normals = geo.attributes.normal;
 
@@ -478,19 +470,6 @@ export function buildTerrain(scene, renderer) {
 
     c.copy(cSoil).lerp(cMoss, smooth(clamp01((broad - 0.28) / 0.46)));
     c.lerp(cLeaf, 0.28 * smooth(clamp01((patch - 0.5) / 0.45)));
-
-    const near = nearestPath(x, z, 4.5);
-    let pathMask = near
-      ? 1 - smooth(clamp01((near.dist - 1.15) / 1.15))
-      : 0;
-    const node = nearestDecision(x, z, 5);
-    if (node) {
-      pathMask = Math.max(
-        pathMask,
-        1 - smooth(clamp01((node.dist - 2.2) / 1.0))
-      );
-    }
-    c.lerp(cPath, pathMask * 0.85);
 
     const ny = normals.getY(i);
     const slope = 0.58 + 0.42 * clamp01((ny - 0.5) / 0.5);
@@ -506,7 +485,7 @@ export function buildTerrain(scene, renderer) {
   const material = new THREE.MeshStandardMaterial({
     map: textures.albedo,
     normalMap: textures.normal,
-    normalScale: new THREE.Vector2(0.14, 0.14),
+    normalScale: new THREE.Vector2(0.06, 0.06),
     vertexColors: true,
     roughness: 0.95,
     metalness: 0,
@@ -525,7 +504,7 @@ export function buildTerrain(scene, renderer) {
   const pathMaterial = new THREE.MeshStandardMaterial({
     map: textures.pathMap,
     normalMap: textures.pathNormal,
-    normalScale: new THREE.Vector2(0.22, 0.22),
+    normalScale: new THREE.Vector2(0.04, 0.04),
     alphaMap: textures.pathAlpha,
     transparent: true,
     depthWrite: false,

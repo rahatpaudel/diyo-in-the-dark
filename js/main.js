@@ -1,16 +1,15 @@
 import * as THREE from './vendor/three.module.js';
-import { getTriangleHitPointInfo } from './vendor/three-mesh-bvh.module.js';
 import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
 import { loadHands, createIntro } from './intro.js';
 import { buildTerrain, heightAt } from './terrain.js';
-import { pathSummary, nearestPath, PATH_HALF_WIDTH } from './path.js';
+import { pathSummary, nearestPath, PATH_HALF_WIDTH, HOUSE_POINT } from './path.js';
 
 /* ------------------------------------------------------------------ */
 /*  Game state                                                        */
 /* ------------------------------------------------------------------ */
 const EYE_HEIGHT = 1.6;
-const PATH_CORRIDOR = PATH_HALF_WIDTH + 1.35;
+const PATH_CORRIDOR = PATH_HALF_WIDTH + 1.0;
 
 const state = {
   playing: false,
@@ -54,12 +53,8 @@ const UI = {
 let scene, camera, renderer, clock;
 let light, house, flame, handFill, handFlame;
 let environment = null;
-let colliders = [];
 let ground = null;
 let intro = null;
-
-// Player collision is a simple upright cylinder; trees are circles in XZ.
-const PLAYER_RADIUS = 0.3;
 
 // Resting-pose reference for the right hand, plus the smoothed gait/sway
 // offsets applied on top of it once the ceremony has handed over.
@@ -229,13 +224,11 @@ function loadWorld() {
   Promise.all([envPromise, handsPromise])
     .then(([env, hands]) => {
       environment = env;
-      colliders = env.colliders || [];
       console.info(
         '[world] ' + env.stats.instances + ' props from ' + env.stats.variants +
           ' models' + (env.stats.missing.length ? ' (missing: ' + env.stats.missing.join(', ') + ')' : '')
       );
       if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.environment = env;
-      if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.colliders = colliders;
 
       // An empty world is playable but pointless. Say why, rather than
       // leaving the player walking through a black void.
@@ -371,52 +364,95 @@ function startGame() {
 /* ------------------------------------------------------------------ */
 function buildHouse() {
   house = new THREE.Group();
-  house.position.set(25, heightAt(25, 25), 25);
-  // Turn the facade (door + windows) toward the spawn, so the house greets
-  // the player instead of showing them its back wall.
-  house.rotation.y = -Math.PI * 0.75;
+  const hx = HOUSE_POINT.x;
+  const hz = HOUSE_POINT.z;
+  house.position.set(hx, heightAt(hx, hz), hz);
+  // Local +Z is the facade. It faces north, down the trail.
+  house.rotation.y = 0;
 
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a2222, roughness: 0.8 });
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x141010 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a423a, roughness: 0.95 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x76573f, roughness: 0.9 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.85 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x28150f, roughness: 0.95 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffc26a, fog: false });
 
-  const walls = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 8), wallMat);
-  walls.position.y = 2.5;
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.6, 7.6), stoneMat);
+  plinth.position.y = 0.3;
+  plinth.castShadow = true;
+  plinth.receiveShadow = true;
+  house.add(plinth);
+
+  const walls = new THREE.Mesh(new THREE.BoxGeometry(6.4, 3.6, 6.4), wallMat);
+  walls.position.y = 2.4;
   walls.castShadow = true;
   walls.receiveShadow = true;
   house.add(walls);
 
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(6, 4, 4), roofMat);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(5.8, 2.8, 4), roofMat);
   roof.position.y = 5.6;
   roof.rotation.y = Math.PI / 4;
   roof.castShadow = true;
   house.add(roof);
 
-  const door = new THREE.Mesh(
-    new THREE.BoxGeometry(1.2, 2.2, 0.18),
-    new THREE.MeshStandardMaterial({ color: 0x5d3a1a })
-  );
-  door.position.set(0, 1.6, 4.01);
+  // Recessed doorway with a warm pane behind the frame.
+  const doorGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 2.5), glowMat);
+  doorGlow.position.set(0, 1.85, 3.205);
+  house.add(doorGlow);
+
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.9, 2.8, 0.16), woodMat);
+  frame.position.set(0, 1.9, 3.18);
+  house.add(frame);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 0.1), woodMat);
+  door.position.set(0, 1.85, 3.26);
   door.castShadow = true;
   house.add(door);
+  // A lit slit at the top of the door reads as a lamp inside.
+  const slit = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.18), glowMat);
+  slit.position.set(0, 2.95, 3.32);
+  house.add(slit);
 
-  // The windows are the beacon: unlit, and deliberately ignoring fog so the
-  // house reads as a warm dot from anywhere in the woods. They emit no light,
-  // so the diyo is still the only light source in the scene.
-  const winMat = new THREE.MeshBasicMaterial({ color: 0xffcc66, fog: false });
-  const winGeo = new THREE.BoxGeometry(1, 1, 0.18);
+  // Porch roof on two posts.
+  const porch = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.22, 2.0), roofMat);
+  porch.position.set(0, 3.55, 4.1);
+  porch.castShadow = true;
+  house.add(porch);
+  for (const x of [-1.7, 1.7]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.2, 0.18), woodMat);
+    post.position.set(x, 1.6, 4.9);
+    post.castShadow = true;
+    house.add(post);
+  }
+
+  // Warm windows, plus side windows so the house glows from other angles.
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xffc26a, fog: false });
   const addWindow = (x, y, z, ry) => {
-    const w = new THREE.Mesh(winGeo, winMat);
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), winMat);
     w.position.set(x, y, z);
     w.rotation.y = ry;
     house.add(w);
   };
-  // Two on the facade...
-  addWindow(-2.5, 3, 4.01, 0);
-  addWindow(2.5, 3, 4.01, 0);
-  // ...and one on each remaining wall, so the glow is visible from any side.
-  addWindow(0, 3, -4.01, 0);
-  addWindow(-4.01, 3, 0, Math.PI / 2);
-  addWindow(4.01, 3, 0, Math.PI / 2);
+  addWindow(-2.15, 3.0, 3.205, 0);
+  addWindow(2.15, 3.0, 3.205, 0);
+  addWindow(-3.205, 3.0, 0, -Math.PI / 2);
+  addWindow(3.205, 3.0, 0, Math.PI / 2);
+
+  // Marigold garland over the door.
+  const marigold = new THREE.MeshStandardMaterial({
+    color: 0xd9821f,
+    emissive: 0x3a1a02,
+    roughness: 0.8
+  });
+  for (let i = 0; i < 9; i++) {
+    const flower = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 5), marigold);
+    const t = i / 8;
+    flower.position.set(-1.25 + t * 2.5, 3.35 - Math.sin(t * Math.PI) * 0.28, 3.45);
+    house.add(flower);
+  }
+
+  const step = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.2, 1.2), stoneMat);
+  step.position.set(0, 0.15, 3.9);
+  step.receiveShadow = true;
+  house.add(step);
 
   scene.add(house);
 }
@@ -593,90 +629,6 @@ function onPointerLockChange() {
 /*  Gameplay update (fixed timestep)                                  */
 /* ------------------------------------------------------------------ */
 
-// The player is treated as a stack of spheres along the body. The world is
-// static and low-poly, so three closest-point BVH queries per nearby prop is
-// cheap and resolves against the actual trunks, branches, and boulders.
-const COLLISION_HEIGHTS = [0.35, 0.9, 1.45];
-// Keep a hair of clearance so leaves and bark never slice into the near plane.
-const COLLISION_SKIN = 0.02;
-const _localSphere = new THREE.Vector3();
-const _worldSphere = new THREE.Vector3();
-const _closest = {
-  point: new THREE.Vector3(),
-  distance: 0,
-  faceIndex: -1
-};
-const _triInfo = {
-  face: { normal: new THREE.Vector3() },
-  uv: new THREE.Vector2(),
-  barycoord: new THREE.Vector3()
-};
-const _pushLocal = new THREE.Vector3();
-const _pushWorld = new THREE.Vector3();
-const _normal = new THREE.Vector3();
-
-function resolveCollisions() {
-  if (!colliders.length) return;
-  const radiusWorld = PLAYER_RADIUS + COLLISION_SKIN;
-  // Three passes settle the player cleanly in concave corners and dense leaves.
-  for (let pass = 0; pass < 3; pass++) {
-    for (let i = 0; i < colliders.length; i++) {
-      const c = colliders[i];
-      if (!c.bvh) continue;
-
-      // Broad phase: full-mesh footprint plus the player's radius.
-      const dx = camera.position.x - c.x;
-      const dz = camera.position.z - c.z;
-      const reach = c.r + radiusWorld + 0.05;
-      if (dx * dx + dz * dz > reach * reach) continue;
-
-      const radiusLocal = radiusWorld / c.scale;
-      const feetY = camera.position.y - EYE_HEIGHT;
-      for (let h = 0; h < COLLISION_HEIGHTS.length; h++) {
-        const y = feetY + COLLISION_HEIGHTS[h];
-        _localSphere
-          .set(camera.position.x, y, camera.position.z)
-          .applyMatrix4(c.inverse);
-
-        const hit = c.bvh.closestPointToPoint(
-          _localSphere,
-          _closest,
-          0,
-          radiusLocal
-        );
-        if (!hit) continue;
-
-        getTriangleHitPointInfo(hit.point, c.geometry, hit.faceIndex, _triInfo);
-        _normal.copy(_triInfo.face.normal);
-
-        // Positive = outside the surface. Negative means the sphere centre
-        // slipped just behind the nearest face, so push out along its normal.
-        const signed = _pushLocal
-          .copy(_localSphere)
-          .sub(hit.point)
-          .dot(_normal);
-
-        if (signed >= 0) {
-          _pushLocal.copy(_localSphere).sub(hit.point);
-          const dist = _pushLocal.length();
-          if (dist < 1e-6) continue;
-          const amount = radiusLocal - dist;
-          if (amount <= 0) continue;
-          _pushLocal.multiplyScalar(amount / dist);
-        } else {
-          _pushLocal.copy(_normal).multiplyScalar(radiusLocal - signed);
-        }
-
-        // Convert the local correction to world space and slide horizontally.
-        _worldSphere.set(camera.position.x, y, camera.position.z);
-        _pushWorld.copy(_localSphere).add(_pushLocal).applyMatrix4(c.matrix);
-        camera.position.x += _pushWorld.x - _worldSphere.x;
-        camera.position.z += _pushWorld.z - _worldSphere.z;
-      }
-    }
-  }
-}
-
 function updatePlayer(dt) {
   if (!state.playing || state.gameOver || state.won || state.cinematic) {
     return;
@@ -701,12 +653,9 @@ function updatePlayer(dt) {
   if (move.lengthSq() > 0) {
     move.normalize();
     camera.position.addScaledVector(move, speed);
-    camera.position.y =
-      heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
-    resolveCollisions();
 
-    // The forest is scenery, not a shortcut. Keep the player inside the trail
-    // corridor; the dense inner tree wall makes this boundary readable.
+    // The trail is the game board. There is no tree collision; steering is
+    // simply held inside the path corridor.
     const near = nearestPath(camera.position.x, camera.position.z, 40);
     if (near && near.dist > PATH_CORRIDOR) {
       const dx = camera.position.x - near.sample.x;

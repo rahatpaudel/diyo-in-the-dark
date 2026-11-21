@@ -14,10 +14,9 @@
  */
 import * as THREE from './vendor/three.module.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
-import { MeshBVH } from './vendor/three-mesh-bvh.module.js';
 import { FOREST } from './forest-data.js';
 import { heightAt } from './terrain.js';
-import { nearestPath, PATH_EXTRAS, PATH_HALF_WIDTH } from './path.js';
+import { PATH_EXTRAS } from './path.js';
 
 const MODEL_DIR = 'models/';
 const SECTORS = 8;
@@ -265,26 +264,9 @@ function sectorOf(x, z) {
  * Trees and rocks are tested against their actual triangles after this, so
  * this only has to be generous enough not to skip a nearby collider.
  */
-function collisionRadius(geometry, kind) {
-  if (kind === 'pebble') return 0;
-  geometry.computeBoundingBox();
-  const bb = geometry.boundingBox;
-  return Math.hypot(
-    Math.max(-bb.min.x, bb.max.x),
-    Math.max(-bb.min.z, bb.max.z)
-  );
-}
-
-/**
- * @param {THREE.Scene} scene
- * @param {object} options
- * @param {THREE.WebGLRenderer} [options.renderer] used for anisotropy
- * @param {(p:number)=>void} [options.onProgress] 0..1 as files arrive
- * @returns {Promise<{group:THREE.Group, meshes:Array, stats:object}>}
- */
 export function loadEnvironment(scene, options = {}) {
   const loader = new GLTFLoader();
-  const names = Object.keys(FOREST);
+  const names = Object.keys(FOREST).filter((n) => n.startsWith('Tree_'));
 
   let done = 0;
   const report = () => {
@@ -338,8 +320,6 @@ function build(scene, loaded, options) {
   const group = new THREE.Group();
   group.name = 'environment';
 
-  // One shared material: the pack uses the same 32x32 palette atlas for
-  // every prop and tints it with vertex colours.
   let sharedMaterial = null;
   let maxAniso = 1;
   if (options.renderer && options.renderer.capabilities) {
@@ -349,10 +329,8 @@ function build(scene, loaded, options) {
   const dummy = new THREE.Object3D();
   const stats = { variants: 0, instances: 0, missing: [], blocked: IS_FILE_PROTOCOL };
   const meshes = [];
-  const colliders = [];
 
-  for (const name of Object.keys(FOREST)) {
-    const list = FOREST[name];
+  for (const name of Object.keys(loaded)) {
     const gltf = loaded[name];
     if (!gltf) {
       stats.missing.push(name);
@@ -365,34 +343,15 @@ function build(scene, loaded, options) {
       continue;
     }
     stats.variants++;
-    const solidRadius = collisionRadius(prepared.geometry, kind);
-    // Build the triangle BVH once per model and share it across instances.
-    const bvh = kind === 'pebble' ? null : new MeshBVH(prepared.geometry);
 
-    // Clear the generated path. The lone strike rock is exempt because the
-    // opening ceremony depends on its exact placement.
-    const kept = [];
-    for (const p of list) {
-      const [x, z, , scale] = p;
-      if (name === 'Tree_On_Rock') {
-        kept.push(p);
-        continue;
-      }
-      const near = nearestPath(x, z, 14);
-      if (near) {
-        if (kind === 'pebble') {
-          if (near.dist < 1.2) continue;
-        } else if (near.dist < solidRadius * scale + PATH_HALF_WIDTH + 0.5) {
-          continue;
-        }
-      }
-      kept.push(p);
+    const items = (PATH_EXTRAS[name] || []).map((e) => [e.x, e.z, e.rot, e.scale]);
+
+    // The opening ceremony's strike rock is the only baked prop retained.
+    if (name === 'Tree_On_Rock' && FOREST[name] && FOREST[name].length) {
+      const p = FOREST[name][0];
+      items.push([p[0], p[1], p[2], p[3]]);
     }
-
-    // Add the path-lining trees and the deliberate dead-end blockers. They
-    // are placed after the clearance pass so they are never filtered out.
-    const extras = PATH_EXTRAS[name] || [];
-    for (const e of extras) kept.push([e.x, e.z, e.rot, e.scale]);
+    if (!items.length) continue;
 
     if (!sharedMaterial) {
       const src = prepared.material;
@@ -411,12 +370,8 @@ function build(scene, loaded, options) {
       });
     }
 
-    // Bucket the fixed layout by sector so culling can throw away most of
-    // the forest while the player faces one way.
     const buckets = Array.from({ length: SECTORS }, () => []);
-    for (const p of kept) {
-      buckets[sectorOf(p[0], p[1])].push(p);
-    }
+    for (const p of items) buckets[sectorOf(p[0], p[1])].push(p);
 
     for (let s = 0; s < SECTORS; s++) {
       const bucket = buckets[s];
@@ -424,40 +379,19 @@ function build(scene, loaded, options) {
 
       const inst = new THREE.InstancedMesh(prepared.geometry, sharedMaterial, bucket.length);
       inst.name = name + '_s' + s;
-      inst.castShadow = kind !== 'pebble';
+      inst.castShadow = true;
       inst.receiveShadow = true;
       inst.instanceMatrix.setUsage(THREE.StaticDrawUsage);
 
       for (let i = 0; i < bucket.length; i++) {
         const [x, z, rot, scale] = bucket[i];
-        const sink =
-          name === 'Tree_On_Rock'
-            ? 0
-            : kind === 'pebble'
-              ? 0.03
-              : kind === 'rock'
-                ? 0.22
-                : 0.18;
+        const sink = name === 'Tree_On_Rock' ? 0 : 0.18;
         dummy.position.set(x, heightAt(x, z) - sink, z);
         dummy.rotation.set(0, rot, 0);
         dummy.scale.setScalar(scale);
         dummy.updateMatrix();
         inst.setMatrixAt(i, dummy.matrix);
-        if (bvh) {
-          const matrix = dummy.matrix.clone();
-          colliders.push({
-            x,
-            z,
-            r: solidRadius * scale,
-            bvh,
-            geometry: prepared.geometry,
-            matrix,
-            inverse: matrix.clone().invert(),
-            scale
-          });
-        }
 
-        // Break up the repetition with a faint brightness jitter.
         const h = Math.abs(Math.sin(i * 12.9898 + x * 78.233 + z * 37.719) * 43758.5453) % 1;
         const tint = 0.86 + h * 0.22;
         inst.setColorAt(i, new THREE.Color(tint, tint, tint));
@@ -472,10 +406,9 @@ function build(scene, loaded, options) {
   }
 
   if (sharedMaterial) {
-    // Frustum/shadow culling needs valid bounds on every instanced mesh.
     for (const m of meshes) m.computeBoundingSphere();
   }
 
   scene.add(group);
-  return { group, meshes, material: sharedMaterial, stats, colliders };
+  return { group, meshes, material: sharedMaterial, stats };
 }
