@@ -283,6 +283,16 @@ const TREES = [
 ];
 const PATH_TREES = TREES.slice(0, 6);
 const EDGE_TREES = [TREES[0], TREES[2], TREES[4]];
+const RADIUS_BY_NAME = Object.fromEntries(TREES.map((t) => [t.name, t.radius]));
+
+// No upright tree may stand on any branch. The clearance uses the tree's own
+// footprint so a wide canopy cannot hang over a neighbouring trail either.
+function treeClearOfPaths(name, x, z, scale) {
+  const radius = (RADIUS_BY_NAME[name] || 0) * scale;
+  const other = nearestPath(x, z, radius + PATH_HALF_WIDTH + PATH_MARGIN + 4);
+  if (!other) return true;
+  return other.dist >= PATH_HALF_WIDTH + radius + PATH_MARGIN + 0.3;
+}
 
 function hash(a, b, c) {
   let h = a * 374761393 + b * 668265263 + c * 1442695041;
@@ -342,8 +352,7 @@ for (const branch of PATH_BRANCHES) {
         const nz = s.z + dx * side * offset;
         if (nearSpawnOrHouse(nx, nz)) continue;
 
-        const other = nearestPath(nx, nz, offset + 4);
-        if (other && other.dist < PATH_HALF_WIDTH + PATH_MARGIN + 0.3) continue;
+        if (!treeClearOfPaths(variant.name, nx, nz, scale)) continue;
 
         addExtra(
           variant.name,
@@ -387,10 +396,18 @@ for (const branch of PATH_BRANCHES) {
   const pz = dx;
   const across = Math.atan2(px, pz);
 
+  // The fallen log is the barricade itself, so it stays on this branch's end.
   addExtra('Tree_Fallen', end.x, end.z, across, 1.0);
-  addExtra('Tree_Large_1', end.x + dx * 2.4 + px * 0.7, end.z + dz * 2.4 + pz * 0.7, hash(end.x, end.z, 1) * Math.PI * 2, 1.0);
-  addExtra('Tree_Small_2', end.x + dx * 2.1 - px * 1.1, end.z + dz * 2.1 - pz * 1.1, hash(end.x, end.z, 2) * Math.PI * 2, 0.9);
-  addExtra('Tree_Small_1', end.x - dx * 1.2 + px * 1.4, end.z - dz * 1.2 + pz * 1.4, hash(end.x, end.z, 3) * Math.PI * 2, 0.8);
+
+  const knot = [
+    ['Tree_Large_1', end.x + dx * 2.4 + px * 0.7, end.z + dz * 2.4 + pz * 0.7, 1.0],
+    ['Tree_Small_2', end.x + dx * 2.1 - px * 1.1, end.z + dz * 2.1 - pz * 1.1, 0.9],
+    ['Tree_Small_1', end.x - dx * 1.2 + px * 1.4, end.z - dz * 1.2 + pz * 1.4, 0.8]
+  ];
+  for (const [name, x, z, scale] of knot) {
+    if (!treeClearOfPaths(name, x, z, scale)) continue;
+    addExtra(name, x, z, hash(x, z, 5) * Math.PI * 2, scale);
+  }
 }
 
 export function pathSummary() {
