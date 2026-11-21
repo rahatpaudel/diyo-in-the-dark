@@ -140,6 +140,22 @@ function drawPaintedText(ctx, text, cx, cy, font, fill, shadow) {
   ctx.restore();
 }
 
+/** Same recessed treatment as the icons, for carved words. */
+function drawCarvedText(ctx, text, cx, cy, font, palette, depth) {
+  const d = Math.max(2, Math.round(depth));
+  ctx.save();
+  ctx.font = font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = palette.shadow;
+  ctx.fillText(text, cx, cy - d * 0.7);
+  ctx.fillStyle = palette.highlight;
+  ctx.fillText(text, cx, cy + d);
+  ctx.fillStyle = palette.recess;
+  ctx.fillText(text, cx, cy);
+  ctx.restore();
+}
+
 /* ------------------------------------------------------------------ */
 /*  Sign texture                                                      */
 /* ------------------------------------------------------------------ */
@@ -328,30 +344,60 @@ function makeTextSignTexture(site) {
 /* ------------------------------------------------------------------ */
 /*  Stone texture                                                     */
 /* ------------------------------------------------------------------ */
-function makeStoneTexture(glyph) {
+function makeStoneTexture(content) {
   const canvas = document.createElement('canvas');
   canvas.width = STONE_TEX_W;
   canvas.height = STONE_TEX_H;
   const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
 
   // Carved border. The panel is transparent; only the marks are drawn.
   const pad = 62;
   ctx.strokeStyle = 'rgba(24,22,18,0.9)';
   ctx.lineWidth = 13;
-  ctx.strokeRect(pad, pad, STONE_TEX_W - pad * 2, STONE_TEX_H - pad * 2);
+  ctx.strokeRect(pad, pad, W - pad * 2, H - pad * 2);
   ctx.strokeStyle = 'rgba(196,184,162,0.32)';
   ctx.lineWidth = 5;
-  ctx.strokeRect(pad + 8, pad + 8, STONE_TEX_W - (pad + 8) * 2, STONE_TEX_H - (pad + 8) * 2);
+  ctx.strokeRect(pad + 8, pad + 8, W - (pad + 8) * 2, H - (pad + 8) * 2);
 
-  drawCarvedGlyph(
-    ctx,
-    glyph,
-    STONE_TEX_W / 2,
-    STONE_TEX_H / 2 + 6,
-    STONE_TEX_W * 0.66,
-    STONE_CARVE,
-    6
-  );
+  if (content.glyph) {
+    drawCarvedGlyph(
+      ctx,
+      content.glyph,
+      W / 2,
+      H / 2 + 6,
+      W * 0.66,
+      STONE_CARVE,
+      6
+    );
+  } else {
+    const maxWidth = W * 0.78;
+    const nepaliFamily =
+      '"Riddle Devanagari", "Noto Sans Devanagari", serif';
+    const nepaliFont = fitFont(ctx, content.ne, nepaliFamily, '700', 210, maxWidth);
+    drawCarvedText(
+      ctx,
+      content.ne,
+      W / 2,
+      Math.round(H * 0.35),
+      nepaliFont,
+      STONE_CARVE,
+      6
+    );
+
+    const englishFamily = 'Georgia, "Times New Roman", serif';
+    const englishFont = fitFont(ctx, content.en, englishFamily, '600', 110, maxWidth);
+    drawCarvedText(
+      ctx,
+      content.en,
+      W / 2,
+      Math.round(H * 0.68),
+      englishFont,
+      STONE_CARVE,
+      5
+    );
+  }
 
   return canvas;
 }
@@ -436,7 +482,7 @@ function buildSign(faceCanvas, renderer) {
   return group;
 }
 
-function buildStone(glyph, renderer) {
+function buildStone(content, renderer) {
   const group = new THREE.Group();
   group.name = 'RiddleStone';
 
@@ -487,7 +533,7 @@ function buildStone(glyph, renderer) {
   rock.receiveShadow = true;
   group.add(rock);
 
-  const faceTexture = canvasTexture(makeStoneTexture(glyph), renderer, true);
+  const faceTexture = canvasTexture(makeStoneTexture(content), renderer, true);
   const faceMaterial = new THREE.MeshStandardMaterial({
     map: faceTexture,
     transparent: true,
@@ -553,14 +599,20 @@ export async function buildRiddleSign(scene, renderer) {
     group.add(sign);
 
     for (const stoneSite of site.stones) {
-      const glyph = stoneSite.icon
-        ? glyphs[stoneSite.icon]
-        : glyphFromText(
-            stoneSite.mark,
-            '700 360px Georgia, "Times New Roman", serif'
-          );
-      const stone = buildStone(glyph, renderer);
-      stone.name = 'RiddleStone-' + (stoneSite.icon || stoneSite.mark);
+      const content = stoneSite.icon
+        ? { glyph: glyphs[stoneSite.icon] }
+        : stoneSite.mark
+          ? {
+              glyph: glyphFromText(
+                stoneSite.mark,
+                '700 360px Georgia, "Times New Roman", serif'
+              )
+            }
+          : { ne: stoneSite.ne, en: stoneSite.en };
+      const stone = buildStone(content, renderer);
+      stone.name =
+        'RiddleStone-' +
+        (stoneSite.icon || stoneSite.mark || stoneSite.en);
       stone.position.set(
         stoneSite.x,
         heightAt(stoneSite.x, stoneSite.z) - 0.12,

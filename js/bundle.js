@@ -26652,6 +26652,19 @@
         { icon: "crow", branch: "q3-correct", x: -0.8, z: -74, radius: 0.8, footprint: 0.82 },
         { icon: "owl", branch: "q3-decoy", x: 8.5, z: -72.8, radius: 0.8, footprint: 0.82 }
       ]
+    },
+    {
+      id: "q4",
+      kind: "text",
+      titleNe: "\u0926\u0940\u0930\u094D\u0918\u093E\u092F\u0941\u0915\u094B \u092A\u094D\u0930\u0924\u0940\u0915",
+      subtitle: "symbol of long life",
+      approach: { x: -2, z: -96 },
+      sign: { x: 2, z: -100, radius: 1.15, footprint: 0.85 },
+      stones: [
+        { ne: "\u0917\u0941\u0932\u093E\u092C", en: "rose", branch: "q4-east", x: 5.3, z: -96.6, radius: 0.8, footprint: 0.82 },
+        { ne: "\u092E\u0916\u092E\u0932\u0940", en: "makhamali", branch: "q4-correct", x: -3.5, z: -99.8, radius: 0.8, footprint: 0.82 },
+        { ne: "\u0915\u092E\u0932", en: "lotus", branch: "q4-west", x: -9.5, z: -96.9, radius: 0.8, footprint: 0.82 }
+      ]
     }
   ];
   var SAMPLE_STEP = 0.6;
@@ -29068,6 +29081,20 @@
     ctx.fillText(text, cx, cy);
     ctx.restore();
   }
+  function drawCarvedText(ctx, text, cx, cy, font, palette, depth) {
+    const d = Math.max(2, Math.round(depth));
+    ctx.save();
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = palette.shadow;
+    ctx.fillText(text, cx, cy - d * 0.7);
+    ctx.fillStyle = palette.highlight;
+    ctx.fillText(text, cx, cy + d);
+    ctx.fillStyle = palette.recess;
+    ctx.fillText(text, cx, cy);
+    ctx.restore();
+  }
   function deterministicRandom(seed) {
     let s = seed >>> 0;
     return () => {
@@ -29222,27 +29249,55 @@
     finishSign(ctx, rand);
     return canvas;
   }
-  function makeStoneTexture(glyph) {
+  function makeStoneTexture(content) {
     const canvas = document.createElement("canvas");
     canvas.width = STONE_TEX_W;
     canvas.height = STONE_TEX_H;
     const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
     const pad = 62;
     ctx.strokeStyle = "rgba(24,22,18,0.9)";
     ctx.lineWidth = 13;
-    ctx.strokeRect(pad, pad, STONE_TEX_W - pad * 2, STONE_TEX_H - pad * 2);
+    ctx.strokeRect(pad, pad, W - pad * 2, H - pad * 2);
     ctx.strokeStyle = "rgba(196,184,162,0.32)";
     ctx.lineWidth = 5;
-    ctx.strokeRect(pad + 8, pad + 8, STONE_TEX_W - (pad + 8) * 2, STONE_TEX_H - (pad + 8) * 2);
-    drawCarvedGlyph(
-      ctx,
-      glyph,
-      STONE_TEX_W / 2,
-      STONE_TEX_H / 2 + 6,
-      STONE_TEX_W * 0.66,
-      STONE_CARVE,
-      6
-    );
+    ctx.strokeRect(pad + 8, pad + 8, W - (pad + 8) * 2, H - (pad + 8) * 2);
+    if (content.glyph) {
+      drawCarvedGlyph(
+        ctx,
+        content.glyph,
+        W / 2,
+        H / 2 + 6,
+        W * 0.66,
+        STONE_CARVE,
+        6
+      );
+    } else {
+      const maxWidth = W * 0.78;
+      const nepaliFamily = '"Riddle Devanagari", "Noto Sans Devanagari", serif';
+      const nepaliFont = fitFont(ctx, content.ne, nepaliFamily, "700", 210, maxWidth);
+      drawCarvedText(
+        ctx,
+        content.ne,
+        W / 2,
+        Math.round(H * 0.35),
+        nepaliFont,
+        STONE_CARVE,
+        6
+      );
+      const englishFamily = 'Georgia, "Times New Roman", serif';
+      const englishFont = fitFont(ctx, content.en, englishFamily, "600", 110, maxWidth);
+      drawCarvedText(
+        ctx,
+        content.en,
+        W / 2,
+        Math.round(H * 0.68),
+        englishFont,
+        STONE_CARVE,
+        5
+      );
+    }
     return canvas;
   }
   function canvasTexture(canvas, renderer2, srgb) {
@@ -29311,7 +29366,7 @@
     group.add(face);
     return group;
   }
-  function buildStone(glyph, renderer2) {
+  function buildStone(content, renderer2) {
     const group = new Group();
     group.name = "RiddleStone";
     const outline = [
@@ -29360,7 +29415,7 @@
     rock.castShadow = true;
     rock.receiveShadow = true;
     group.add(rock);
-    const faceTexture = canvasTexture(makeStoneTexture(glyph), renderer2, true);
+    const faceTexture = canvasTexture(makeStoneTexture(content), renderer2, true);
     const faceMaterial = new MeshStandardMaterial({
       map: faceTexture,
       transparent: true,
@@ -29412,12 +29467,14 @@
       sign2.rotation.y = yawToward(site.sign.x, site.sign.z, site.approach);
       group.add(sign2);
       for (const stoneSite of site.stones) {
-        const glyph = stoneSite.icon ? glyphs[stoneSite.icon] : glyphFromText(
-          stoneSite.mark,
-          '700 360px Georgia, "Times New Roman", serif'
-        );
-        const stone = buildStone(glyph, renderer2);
-        stone.name = "RiddleStone-" + (stoneSite.icon || stoneSite.mark);
+        const content = stoneSite.icon ? { glyph: glyphs[stoneSite.icon] } : stoneSite.mark ? {
+          glyph: glyphFromText(
+            stoneSite.mark,
+            '700 360px Georgia, "Times New Roman", serif'
+          )
+        } : { ne: stoneSite.ne, en: stoneSite.en };
+        const stone = buildStone(content, renderer2);
+        stone.name = "RiddleStone-" + (stoneSite.icon || stoneSite.mark || stoneSite.en);
         stone.position.set(
           stoneSite.x,
           heightAt(stoneSite.x, stoneSite.z) - 0.12,
