@@ -10,18 +10,34 @@ import * as THREE from './vendor/three.module.js';
 export const PATH_HALF_WIDTH = 1.25;
 export const HOUSE_POINT = { x: 0, z: -168 };
 
-// The first riddle site. One point of truth: the forest generator keeps these
-// clear, and riddle.js puts the sign and stones here.
-export const RIDDLE_SITE = {
-  approach: { x: 1.5, z: -24 },
-  sign: { x: 3.4, z: -28.0, radius: 1.15, footprint: 0.85 },
-  stones: [
-    { icon: 'dog', branch: 'q1-correct', x: -1.2, z: -26.1, radius: 0.8, footprint: 0.82 },
-    { icon: 'horse', branch: 'q1-decoy', x: 6.5, z: -24.6, radius: 0.8, footprint: 0.82 }
-  ],
-  // The old sign stood here; a tree takes its place.
-  tree: { x: 4.9, z: -31.5, radius: 1.0 }
-};
+// Riddle sites. One point of truth: the forest generator keeps these clear,
+// and riddle.js puts the sign and stones at these positions.
+export const RIDDLE_SITES = [
+  {
+    id: 'q1',
+    kind: 'grid',
+    approach: { x: 1.5, z: -24 },
+    sign: { x: 3.4, z: -28.0, radius: 1.15, footprint: 0.85 },
+    stones: [
+      { icon: 'dog', branch: 'q1-correct', x: -1.2, z: -26.1, radius: 0.8, footprint: 0.82 },
+      { icon: 'horse', branch: 'q1-decoy', x: 6.5, z: -24.6, radius: 0.8, footprint: 0.82 }
+    ],
+    // The first sign stood here before it moved to the fork; a tree fills it.
+    tree: { x: 4.9, z: -31.5, radius: 1.0 }
+  },
+  {
+    id: 'q2',
+    kind: 'text',
+    titleNe: 'टीकाका रङहरू',
+    subtitle: 'colors of tika',
+    approach: { x: -1.5, z: -48 },
+    sign: { x: -4.3, z: -51.7, radius: 1.15, footprint: 0.85 },
+    stones: [
+      { mark: '6', branch: 'q2-decoy', x: -8.2, z: -48.7, radius: 0.8, footprint: 0.82 },
+      { mark: '7', branch: 'q2-correct', x: 0.8, z: -48.8, radius: 0.8, footprint: 0.82 }
+    ]
+  }
+];
 
 const SAMPLE_STEP = 0.6;
 const CELL = 4;
@@ -300,13 +316,17 @@ const RADIUS_BY_NAME = Object.fromEntries(TREES.map((t) => [t.name, t.radius]));
 
 // No upright tree may stand on any branch. The clearance uses the tree's own
 // footprint so a wide canopy cannot hang over a neighbouring trail either.
-const RIDDLE_SITES = [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones, RIDDLE_SITE.tree];
+const RIDDLE_CLEARINGS = [];
+for (const site of RIDDLE_SITES) {
+  RIDDLE_CLEARINGS.push(site.sign, ...site.stones);
+  if (site.tree) RIDDLE_CLEARINGS.push(site.tree);
+}
 
 function treeClearOfPaths(name, x, z, scale) {
   const radius = (RADIUS_BY_NAME[name] || 0) * scale;
 
   // Keep the sign and the engraved stones out of the canopy.
-  for (const site of RIDDLE_SITES) {
+  for (const site of RIDDLE_CLEARINGS) {
     if (Math.hypot(x - site.x, z - site.z) < site.radius + radius + 0.3) {
       return false;
     }
@@ -393,9 +413,9 @@ for (const branch of PATH_BRANCHES) {
 // fills that opening, so the junction still reads as deep forest.
 addExtra(
   'Tree_Large_1',
-  RIDDLE_SITE.tree.x,
-  RIDDLE_SITE.tree.z,
-  hash(RIDDLE_SITE.tree.x, RIDDLE_SITE.tree.z, 733) * Math.PI * 2,
+  RIDDLE_SITES[0].tree.x,
+  RIDDLE_SITES[0].tree.z,
+  hash(RIDDLE_SITES[0].tree.x, RIDDLE_SITES[0].tree.z, 733) * Math.PI * 2,
   0.95
 );
 

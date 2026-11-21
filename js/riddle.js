@@ -12,7 +12,7 @@ import { heightAt } from './terrain.js';
 import {
   nearestPath,
   PATH_HALF_WIDTH,
-  RIDDLE_SITE
+  RIDDLE_SITES
 } from './path.js';
 
 const ICON_SIZE = 512;
@@ -169,16 +169,19 @@ function carveLine(ctx, x0, y0, x1, y1, width) {
   ctx.restore();
 }
 
-function makeSignTexture(glyphs) {
+function newSignCanvas() {
   const canvas = document.createElement('canvas');
   canvas.width = SIGN_TEX_W;
   canvas.height = SIGN_TEX_H;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width;
-  const H = canvas.height;
+  return canvas;
+}
+
+/** Weathered planks, seams, and the recessed border shared by both signs. */
+function paintPlank(ctx) {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
   const rand = deterministicRandom(0x5eed);
 
-  // Weathered vertical planks.
   const planks = 3;
   const plankW = W / planks;
   for (let i = 0; i < planks; i++) {
@@ -212,7 +215,6 @@ function makeSignTexture(glyphs) {
     carveLine(ctx, i * plankW, 0, i * plankW, H, 9);
   }
 
-  // Recessed border.
   const pad = 30;
   ctx.strokeStyle = 'rgba(30,17,7,0.95)';
   ctx.lineWidth = 8;
@@ -221,7 +223,39 @@ function makeSignTexture(glyphs) {
   ctx.lineWidth = 3;
   ctx.strokeRect(pad + 6, pad + 6, W - (pad + 6) * 2, H - (pad + 6) * 2);
 
-  // Three columns: numerals above, symbols below.
+  return rand;
+}
+
+function finishSign(ctx, rand) {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  for (let i = 0; i < 1400; i++) {
+    ctx.fillStyle =
+      rand() > 0.5 ? 'rgba(255,225,180,0.03)' : 'rgba(20,10,4,0.05)';
+    ctx.fillRect(rand() * W, rand() * H, 1 + rand() * 2, 1 + rand() * 2);
+  }
+}
+
+/** Shrink a font until the line fits. Returns the canvas font string. */
+function fitFont(ctx, text, family, weight, startSize, maxWidth) {
+  let size = startSize;
+  do {
+    ctx.font = weight + ' ' + size + 'px ' + family;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size -= 4;
+  } while (size > 24);
+  return ctx.font;
+}
+
+/** First riddle: १ २ ३ over crow, ?, cow. */
+function makeGridSignTexture(glyphs) {
+  const canvas = newSignCanvas();
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const rand = paintPlank(ctx);
+  const pad = 30;
+
   const colX = [W / 6, W / 2, (W * 5) / 6];
   const rowLineY = Math.round(H * 0.36);
   carveLine(ctx, pad, rowLineY, W - pad, rowLineY, 7);
@@ -229,7 +263,7 @@ function makeSignTexture(glyphs) {
   carveLine(ctx, (W * 2) / 3, pad, (W * 2) / 3, H - pad, 7);
 
   const numeralFont =
-    '700 196px "Riddle Numerals", "Noto Sans Devanagari", serif';
+    '700 196px "Riddle Devanagari", "Noto Sans Devanagari", serif';
   const numerals = ['१', '२', '३'];
   for (let i = 0; i < 3; i++) {
     drawPaintedText(
@@ -249,13 +283,45 @@ function makeSignTexture(glyphs) {
   drawCarvedGlyph(ctx, glyphs.question, colX[1], iconCy, iconBox, SIGN_CARVE, 5);
   drawCarvedGlyph(ctx, glyphs.cow, colX[2], iconCy, iconBox, SIGN_CARVE, 5);
 
-  // A faint grit pass ties the carving into the wood.
-  for (let i = 0; i < 1400; i++) {
-    ctx.fillStyle =
-      rand() > 0.5 ? 'rgba(255,225,180,0.03)' : 'rgba(20,10,4,0.05)';
-    ctx.fillRect(rand() * W, rand() * H, 1 + rand() * 2, 1 + rand() * 2);
-  }
+  finishSign(ctx, rand);
+  return canvas;
+}
 
+/** Later riddles: one line of Nepali over one line of English. */
+function makeTextSignTexture(site) {
+  const canvas = newSignCanvas();
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const rand = paintPlank(ctx);
+  const maxWidth = W - 120;
+
+  const nepaliFamily =
+    '"Riddle Devanagari", "Noto Sans Devanagari", serif';
+  const nepaliFont = fitFont(ctx, site.titleNe, nepaliFamily, '700', 260, maxWidth);
+  drawPaintedText(
+    ctx,
+    site.titleNe,
+    W / 2,
+    Math.round(H * 0.35),
+    nepaliFont,
+    '#f0d3a0',
+    '#241306'
+  );
+
+  const englishFamily = 'Georgia, "Times New Roman", serif';
+  const englishFont = fitFont(ctx, site.subtitle, englishFamily, '600', 140, maxWidth);
+  drawPaintedText(
+    ctx,
+    site.subtitle,
+    W / 2,
+    Math.round(H * 0.7),
+    englishFont,
+    '#e6c592',
+    '#241306'
+  );
+
+  finishSign(ctx, rand);
   return canvas;
 }
 
@@ -307,7 +373,7 @@ function yawToward(x, z, target) {
   return Math.atan2(target.x - x, target.z - z);
 }
 
-function buildSign(glyphs, renderer) {
+function buildSign(faceCanvas, renderer) {
   const group = new THREE.Group();
   group.name = 'RiddleSign';
 
@@ -351,11 +417,7 @@ function buildSign(glyphs, renderer) {
   backing.receiveShadow = true;
   group.add(backing);
 
-  const faceTexture = canvasTexture(
-    makeSignTexture(glyphs),
-    renderer,
-    true
-  );
+  const faceTexture = canvasTexture(faceCanvas, renderer, true);
   const faceMaterial = new THREE.MeshStandardMaterial({
     map: faceTexture,
     roughness: 0.86,
@@ -452,7 +514,7 @@ function buildStone(glyph, renderer) {
 /*  Public builder                                                    */
 /* ------------------------------------------------------------------ */
 export async function buildRiddleSign(scene, renderer) {
-  await document.fonts.load('700 196px "Riddle Numerals"');
+  await document.fonts.load('700 196px "Riddle Devanagari"');
 
   const [crow, cow, dog, horse] = await Promise.all([
     loadIcon('crow'),
@@ -470,29 +532,53 @@ export async function buildRiddleSign(scene, renderer) {
   };
 
   const group = new THREE.Group();
-  group.name = 'RiddleSite';
+  group.name = 'RiddleSites';
 
-  const sign = buildSign(glyphs, renderer);
-  const signX = RIDDLE_SITE.sign.x;
-  const signZ = RIDDLE_SITE.sign.z;
-  sign.position.set(signX, heightAt(signX, signZ) - 0.14, signZ);
-  sign.rotation.y = yawToward(signX, signZ, RIDDLE_SITE.approach);
-  group.add(sign);
+  for (const site of RIDDLE_SITES) {
+    const faceCanvas =
+      site.kind === 'grid'
+        ? makeGridSignTexture(glyphs)
+        : makeTextSignTexture(site);
 
-  for (const site of RIDDLE_SITE.stones) {
-    const stone = buildStone(glyphs[site.icon], renderer);
-    stone.position.set(site.x, heightAt(site.x, site.z) - 0.12, site.z);
-    stone.rotation.y = yawToward(site.x, site.z, RIDDLE_SITE.approach);
-    group.add(stone);
-  }
+    const sign = buildSign(faceCanvas, renderer);
+    sign.name = 'RiddleSign-' + site.id;
+    sign.position.set(
+      site.sign.x,
+      heightAt(site.sign.x, site.sign.z) - 0.14,
+      site.sign.z
+    );
+    sign.rotation.y = yawToward(site.sign.x, site.sign.z, site.approach);
+    group.add(sign);
 
-  if (typeof console !== 'undefined') {
+    for (const stoneSite of site.stones) {
+      const glyph = stoneSite.icon
+        ? glyphs[stoneSite.icon]
+        : glyphFromText(
+            stoneSite.mark,
+            '700 360px Georgia, "Times New Roman", serif'
+          );
+      const stone = buildStone(glyph, renderer);
+      stone.name = 'RiddleStone-' + (stoneSite.icon || stoneSite.mark);
+      stone.position.set(
+        stoneSite.x,
+        heightAt(stoneSite.x, stoneSite.z) - 0.12,
+        stoneSite.z
+      );
+      stone.rotation.y = yawToward(stoneSite.x, stoneSite.z, site.approach);
+      group.add(stone);
+    }
+
     // A quiet guard against future path changes putting a prop on the trail.
-    for (const site of [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones]) {
-      const near = nearestPath(site.x, site.z, site.footprint + PATH_HALF_WIDTH + 6);
-      if (near && near.dist < PATH_HALF_WIDTH + site.footprint) {
+    for (const prop of [site.sign, ...site.stones]) {
+      const near = nearestPath(
+        prop.x,
+        prop.z,
+        prop.footprint + PATH_HALF_WIDTH + 6
+      );
+      if (near && near.dist < PATH_HALF_WIDTH + prop.footprint) {
         console.warn(
-          '[riddle] prop at ' + site.x + ',' + site.z + ' overlaps the trail'
+          '[riddle] ' + site.id + ' prop at ' + prop.x + ',' + prop.z +
+            ' overlaps the trail'
         );
       }
     }
