@@ -26640,6 +26640,18 @@
         { mark: "6", branch: "q2-decoy", x: -8.2, z: -48.7, radius: 0.8, footprint: 0.82 },
         { mark: "7", branch: "q2-correct", x: 0.8, z: -48.8, radius: 0.8, footprint: 0.82 }
       ]
+    },
+    {
+      id: "q3",
+      kind: "text",
+      titleNe: "\u092F\u092E\u0926\u0942\u0924",
+      subtitle: "Yama's message carrier",
+      approach: { x: 2, z: -72 },
+      sign: { x: 4.4, z: -76, radius: 1.15, footprint: 0.85 },
+      stones: [
+        { icon: "crow", branch: "q3-correct", x: -0.8, z: -74, radius: 0.8, footprint: 0.82 },
+        { icon: "owl", branch: "q3-decoy", x: 8.5, z: -72.8, radius: 0.8, footprint: 0.82 }
+      ]
     }
   ];
   var SAMPLE_STEP = 0.6;
@@ -29371,17 +29383,19 @@
   }
   async function buildRiddleSign(scene2, renderer2) {
     await document.fonts.load('700 196px "Riddle Devanagari"');
-    const [crow, cow, dog, horse] = await Promise.all([
+    const [crow, cow, dog, horse, owl] = await Promise.all([
       loadIcon("crow"),
       loadIcon("cow"),
       loadIcon("dog"),
-      loadIcon("horse")
+      loadIcon("horse"),
+      loadIcon("owl")
     ]);
     const glyphs = {
       crow: rasterize(crow),
       cow: rasterize(cow),
       dog: rasterize(dog),
       horse: rasterize(horse),
+      owl: rasterize(owl),
       question: glyphFromText("?", '700 430px Georgia, "Times New Roman", serif')
     };
     const group = new Group();

@@ -516,11 +516,12 @@ function buildStone(glyph, renderer) {
 export async function buildRiddleSign(scene, renderer) {
   await document.fonts.load('700 196px "Riddle Devanagari"');
 
-  const [crow, cow, dog, horse] = await Promise.all([
+  const [crow, cow, dog, horse, owl] = await Promise.all([
     loadIcon('crow'),
     loadIcon('cow'),
     loadIcon('dog'),
-    loadIcon('horse')
+    loadIcon('horse'),
+    loadIcon('owl')
   ]);
 
   const glyphs = {
@@ -528,6 +529,7 @@ export async function buildRiddleSign(scene, renderer) {
     cow: rasterize(cow),
     dog: rasterize(dog),
     horse: rasterize(horse),
+    owl: rasterize(owl),
     question: glyphFromText('?', '700 430px Georgia, "Times New Roman", serif')
   };
 

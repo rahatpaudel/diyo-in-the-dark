@@ -36,6 +36,18 @@ export const RIDDLE_SITES = [
       { mark: '6', branch: 'q2-decoy', x: -8.2, z: -48.7, radius: 0.8, footprint: 0.82 },
       { mark: '7', branch: 'q2-correct', x: 0.8, z: -48.8, radius: 0.8, footprint: 0.82 }
     ]
+  },
+  {
+    id: 'q3',
+    kind: 'text',
+    titleNe: 'यमदूत',
+    subtitle: "Yama's message carrier",
+    approach: { x: 2, z: -72 },
+    sign: { x: 4.4, z: -76.0, radius: 1.15, footprint: 0.85 },
+    stones: [
+      { icon: 'crow', branch: 'q3-correct', x: -0.8, z: -74.0, radius: 0.8, footprint: 0.82 },
+      { icon: 'owl', branch: 'q3-decoy', x: 8.5, z: -72.8, radius: 0.8, footprint: 0.82 }
+    ]
   }
 ];
 
