@@ -262,6 +262,139 @@ function onIntroDone() {
       'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
     UI.instructions.style.display = 'block';
   }
+  showPoseTuner();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Temporary resting-hand pose tuner                                 */
+/*  Sliders for the final HUD hand. Remove this block and the         */
+/*  showPoseTuner() call above once the pose is locked in.            */
+/* ------------------------------------------------------------------ */
+let poseTuner = null;
+
+function showPoseTuner() {
+  if (!intro) return;
+  if (poseTuner) {
+    poseTuner.style.display = 'block';
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.id = 'pose-tuner-style';
+  style.textContent = `
+    #pose-tuner {
+      position: fixed; top: 14px; left: 14px; z-index: 999;
+      width: 264px; padding: 10px 12px 12px;
+      background: rgba(10, 7, 4, 0.86);
+      border: 1px solid rgba(255, 176, 92, 0.3);
+      border-radius: 9px;
+      color: #f4d8b0;
+      font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+      user-select: none;
+    }
+    #pose-tuner h2 {
+      margin: 0 0 8px; color: #ffcd8a; font-size: 11px;
+      letter-spacing: 0.14em; text-transform: uppercase;
+    }
+    #pose-tuner label { display: flex; align-items: center; gap: 7px; margin: 4px 0; }
+    #pose-tuner .n { flex: 0 0 40px; color: #c69a6a; }
+    #pose-tuner input { flex: 1; min-width: 0; accent-color: #e8a24d; }
+    #pose-tuner output { flex: 0 0 46px; text-align: right; color: #ffe6bd; }
+    #pose-tuner .hint { margin: 8px 0 0; color: #8f7458; font-size: 10px; }
+    #pose-tuner button {
+      margin-top: 8px; padding: 4px 9px; border-radius: 5px;
+      border: 1px solid rgba(255, 176, 92, 0.35);
+      background: rgba(255, 176, 92, 0.12); color: #f4d8b0;
+      font: inherit; cursor: pointer;
+    }
+    #pose-tuner button:hover { background: rgba(255, 176, 92, 0.24); }
+  `;
+  document.head.appendChild(style);
+
+  const panel = document.createElement('div');
+  panel.id = 'pose-tuner';
+
+  const title = document.createElement('h2');
+  title.textContent = 'Resting hand';
+  panel.appendChild(title);
+
+  const hand = intro.rightHand;
+  const wick = new THREE.Vector3();
+  const wickObject = hand.getObjectByName('diya_wick');
+
+  // Keep the flame and its light pinned to the diya as the hand moves.
+  const apply = () => {
+    hand.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    if (!wickObject) return;
+    wickObject.getWorldPosition(wick);
+    camera.worldToLocal(wick);
+    intro.wickLocal.copy(wick);
+    flame.setVisible(true);
+    flame.setWickPosition(wick.x, wick.y, wick.z, 1);
+    intro.handLight.position.set(wick.x, wick.y + 0.08, wick.z);
+  };
+
+  const rows = [
+    ['pos x', 'position', 'x', -0.2, 0.9, 0.005],
+    ['pos y', 'position', 'y', -0.9, 0.05, 0.005],
+    ['pos z', 'position', 'z', -0.7, 0.3, 0.005],
+    ['rot x', 'rotation', 'x', -1.6, 1.6, 0.01],
+    ['rot y', 'rotation', 'y', -1.6, 1.6, 0.01],
+    ['rot z', 'rotation', 'z', -1.6, 1.6, 0.01]
+  ];
+
+  for (const [labelText, prop, axis, min, max, step] of rows) {
+    const row = document.createElement('label');
+    const name = document.createElement('span');
+    name.className = 'n';
+    name.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    input.value = hand[prop][axis];
+    const out = document.createElement('output');
+    out.textContent = Number(hand[prop][axis]).toFixed(3);
+    input.addEventListener('input', () => {
+      hand[prop][axis] = parseFloat(input.value);
+      out.textContent = Number(input.value).toFixed(3);
+      apply();
+    });
+    row.append(name, input, out);
+    panel.appendChild(row);
+  }
+
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.textContent = 'Copy pose';
+  copy.addEventListener('click', () => {
+    const data = JSON.stringify({
+      position: hand.position.toArray().map((v) => +v.toFixed(3)),
+      rotation: [hand.rotation.x, hand.rotation.y, hand.rotation.z].map(
+        (v) => +v.toFixed(3)
+      )
+    });
+    console.info('[resting pose]', data);
+    if (navigator.clipboard) navigator.clipboard.writeText(data).catch(() => {});
+    copy.textContent = 'Copied';
+    window.setTimeout(() => {
+      copy.textContent = 'Copy pose';
+    }, 900);
+  });
+  panel.appendChild(copy);
+
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent = 'Press Esc to free the cursor, then drag.';
+  panel.appendChild(hint);
+
+  document.body.appendChild(panel);
+  poseTuner = panel;
+  apply();
+
+  if (document.pointerLockElement) document.exitPointerLock();
 }
 
 /* ------------------------------------------------------------------ */
