@@ -25198,8 +25198,8 @@
   };
   var RIGHT_TILT_START = 2.55;
   var RIGHT_TILT_END = 4.05;
-  var RIGHT_HOLD_END = 4.78;
-  var RIGHT_RETURN_END = 5.55;
+  var RIGHT_HOLD_END = 4.55;
+  var RIGHT_RETURN_END = 5.05;
   var STRIKE_YAW = 0.83;
   var STRIKE_PITCH = -0.25;
   var STRIKE_ROT = [0.16, -0.7, 0.05];
@@ -25208,7 +25208,7 @@
   var LIGHT_SCALE = 0.9;
   var APPROACH_ROT = [0.3, -0.5, 0.1];
   var FLAME_MATCH_SCALE = 0.5;
-  var MAX_STRIKE_REACH = 1;
+  var MAX_STRIKE_REACH = 0.92;
   var SCRAPE_DISTANCE = 0.1;
   var SCRAPE2_DISTANCE = 0.125;
   var RESET_LIFT = 0.05;

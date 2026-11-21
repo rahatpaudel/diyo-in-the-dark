@@ -42,11 +42,13 @@ const RIGHT_CARRY_POSE = {
   scale: 0.8
 };
 
-// When the right hand starts and finishes its inward tilt (seconds).
+// When the right hand starts and finishes its inward tilt (seconds). It starts
+// turning while the match is still recoiling, holds through the transfer, then
+// settles back into its resting form and stays still for the closing shot.
 const RIGHT_TILT_START = 2.55;
 const RIGHT_TILT_END = 4.05;
-const RIGHT_HOLD_END = 4.78;
-const RIGHT_RETURN_END = 5.55;
+const RIGHT_HOLD_END = 4.55;
+const RIGHT_RETURN_END = 5.05;
 
 // Camera look used for the strike. The rock ray is cast along this direction,
 // and the hand is solved to meet that exact point when the camera arrives.
@@ -78,7 +80,7 @@ const FLAME_MATCH_SCALE = 0.5;
 // rock sits further out; the arm is kept close so the wrist stays near the
 // body and the forearm falls out of the bottom of the frame instead of being
 // stretched across the shot. The rock placement is tuned to this reach later.
-const MAX_STRIKE_REACH = 1.00;
+const MAX_STRIKE_REACH = 0.92;
 
 // Scrape and lift distances, in camera-space metres. The first stroke is short
 // and the second one longer; both end with the match lifted clear of the stone
@@ -618,7 +620,7 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     //   4.20-4.55  flame passes to the wick
     //   4.55-4.75  hand pulls away from the lamp
     //   4.75-5.40  left hand falls out of frame
-    //   4.78-5.55  diya settles back to its HUD pose
+    //   4.55-5.05  diya settles back to its resting pose and holds still
     //   5.85       gameplay
 
     // ---- camera ----
