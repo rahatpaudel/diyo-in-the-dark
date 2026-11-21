@@ -26,10 +26,12 @@ const RIGHT_URL = HAND_DIR + 'hand_right.glb';
 
 // The right hand's fixed HUD pose. These values put the diya wick at roughly
 // (0.45, -0.29, -1.0) in camera space, which is the same bottom-right spot the
-// standalone flame used to occupy. The bowl is level in this resting form.
+// standalone flame used to occupy. The bowl is level apart from a few degrees
+// of outward roll, which keeps the resting hand leaning away from the middle
+// of the frame instead of crowding it.
 const RIGHT_POSE = {
   position: [0.43, -0.45, -0.13],
-  rotation: [0, 0, 0],
+  rotation: [0, 0, -0.07],
   scale: 0.8
 };
 

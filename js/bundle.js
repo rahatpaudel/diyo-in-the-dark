@@ -25188,7 +25188,7 @@
   var RIGHT_URL = HAND_DIR + "hand_right.glb";
   var RIGHT_POSE = {
     position: [0.43, -0.45, -0.13],
-    rotation: [0, 0, 0],
+    rotation: [0, 0, -0.07],
     scale: 0.8
   };
   var RIGHT_CARRY_POSE = {
