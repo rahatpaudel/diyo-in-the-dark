@@ -28331,7 +28331,7 @@
         age: randomBetween(0, 4)
       });
       phases[i] = randomBetween(0, Math.PI * 2);
-      amplitudes[i] = randomBetween(0.025, 0.085);
+      amplitudes[i] = randomBetween(0.045, 0.13);
     }
     const geometry = new PlaneGeometry(
       RIBBON_LENGTH,
