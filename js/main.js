@@ -9,7 +9,7 @@ import { pathSummary, nearestPath, PATH_HALF_WIDTH, HOUSE_POINT } from './path.j
 /*  Game state                                                        */
 /* ------------------------------------------------------------------ */
 const EYE_HEIGHT = 1.6;
-const PATH_CORRIDOR = PATH_HALF_WIDTH + 1.0;
+const PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
 
 const state = {
   playing: false,

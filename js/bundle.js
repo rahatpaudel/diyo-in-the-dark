@@ -25728,24 +25728,76 @@
     mesh.receiveShadow = true;
     mesh.castShadow = false;
     scene2.add(mesh);
+    textures.pathMap.repeat.set(1, 1);
+    textures.pathMap.wrapS = textures.pathMap.wrapT = RepeatWrapping;
+    textures.pathMap.needsUpdate = true;
+    const pathPositions = [];
+    const pathNormals = [];
+    const pathUvs = [];
+    const pathColors = [];
+    const pathIndices = [];
+    const edgeColor = new Color(7035458);
+    const innerColor = new Color(16777215);
+    for (let bi = 0; bi < PATH_BRANCHES.length; bi++) {
+      const branch = PATH_BRANCHES[bi];
+      const samples = branch.samples;
+      const startVertex = pathPositions.length / 3;
+      let travelled = 0;
+      for (let i = 0; i < samples.length; i++) {
+        if (i > 0) {
+          travelled += Math.hypot(
+            samples[i].x - samples[i - 1].x,
+            samples[i].z - samples[i - 1].z
+          );
+        }
+        const prev = samples[Math.max(0, i - 1)];
+        const next = samples[Math.min(samples.length - 1, i + 1)];
+        let dx = next.x - prev.x;
+        let dz = next.z - prev.z;
+        const len = Math.hypot(dx, dz) || 1;
+        dx /= len;
+        dz /= len;
+        const nx = -dz;
+        const nz = dx;
+        const half = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(i * 0.31 + bi));
+        const offsets = [-half, -half * 0.78, half * 0.78, half];
+        const uvs2 = [0, 0.27, 0.73, 1];
+        for (let k = 0; k < 4; k++) {
+          const x = samples[i].x + nx * offsets[k];
+          const z = samples[i].z + nz * offsets[k];
+          pathPositions.push(x, heightAt(x, z) + 0.028 + bi * 4e-4, z);
+          pathUvs.push(uvs2[k], travelled / 2.5);
+          const c2 = k === 0 || k === 3 ? edgeColor : innerColor;
+          pathColors.push(c2.r, c2.g, c2.b);
+        }
+        if (i > 0) {
+          const a = startVertex + (i - 1) * 4;
+          const b = startVertex + i * 4;
+          for (let k = 0; k < 3; k++) {
+            pathIndices.push(a + k, b + k, a + k + 1);
+            pathIndices.push(a + k + 1, b + k, b + k + 1);
+          }
+        }
+      }
+    }
+    const pathGeo = new BufferGeometry();
+    pathGeo.setAttribute("position", new Float32BufferAttribute(pathPositions, 3));
+    pathGeo.setAttribute("uv", new Float32BufferAttribute(pathUvs, 2));
+    pathGeo.setAttribute("color", new Float32BufferAttribute(pathColors, 3));
+    pathGeo.setIndex(pathIndices);
+    pathGeo.computeVertexNormals();
     const pathMaterial = new MeshStandardMaterial({
       map: textures.pathMap,
-      alphaMap: textures.pathAlpha,
-      transparent: true,
-      depthWrite: false,
+      vertexColors: true,
       roughness: 0.96,
       metalness: 0,
       color: 16777215,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
+      side: DoubleSide
     });
-    const pathMesh = new Mesh(geo, pathMaterial);
+    const pathMesh = new Mesh(pathGeo, pathMaterial);
     pathMesh.name = "Path";
-    pathMesh.position.y = 0.012;
     pathMesh.receiveShadow = false;
     pathMesh.castShadow = false;
-    pathMesh.renderOrder = 2;
     scene2.add(pathMesh);
     return mesh;
   }
@@ -27109,7 +27161,7 @@
 
   // js/main.js
   var EYE_HEIGHT = 1.6;
-  var PATH_CORRIDOR = PATH_HALF_WIDTH + 1;
+  var PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
   var state = {
     playing: false,
     gameOver: false,
