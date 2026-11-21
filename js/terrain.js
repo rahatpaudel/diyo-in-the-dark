@@ -14,14 +14,14 @@ import {
 
 const SIZE = 320; // legacy extent for the unused route mask
 const HALF = SIZE / 2;
-const MIN_X = -36;
-const MAX_X = 36;
-const MIN_Z = -152;
+const MIN_X = -42;
+const MAX_X = 42;
+const MIN_Z = -186;
 const MAX_Z = 42;
 const WIDTH = MAX_X - MIN_X;
 const DEPTH = MAX_Z - MIN_Z;
-const SEG_X = 84;
-const SEG_Z = 232;
+const SEG_X = 98;
+const SEG_Z = 276;
 
 /* ------------------------------------------------------------------ */
 /*  Deterministic noise                                               */
@@ -512,26 +512,94 @@ export function buildTerrain(scene, renderer) {
   textures.pathMap.wrapS = textures.pathMap.wrapT = THREE.RepeatWrapping;
   textures.pathMap.needsUpdate = true;
 
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minZ = Infinity;
-  let maxZ = -Infinity;
+  // The visible outline of the trail comes from a high-resolution, soft alpha
+  // mask. The mesh cells only need to cover the mask, so the stepped cell
+  // boundary never shows.
+  const maskPad = 0.6;
+  let mMinX = Infinity;
+  let mMinZ = Infinity;
+  let mMaxX = -Infinity;
+  let mMaxZ = -Infinity;
   for (const s of PATH_SAMPLES) {
-    if (s.x < minX) minX = s.x;
-    if (s.x > maxX) maxX = s.x;
-    if (s.z < minZ) minZ = s.z;
-    if (s.z > maxZ) maxZ = s.z;
+    if (s.x < mMinX) mMinX = s.x;
+    if (s.x > mMaxX) mMaxX = s.x;
+    if (s.z < mMinZ) mMinZ = s.z;
+    if (s.z > mMaxZ) mMaxZ = s.z;
   }
-  minX -= 4;
-  maxX += 4;
-  minZ -= 4;
-  maxZ += 4;
+  const fade = 0.5;
+  const reach = PATH_HALF_WIDTH * 1.03 + fade + maskPad;
+  mMinX -= reach;
+  mMaxX += reach;
+  mMinZ -= reach;
+  mMaxZ += reach;
 
-  // Stamp cells only around the actual path samples instead of scanning the
-  // whole bounding box, and key them on integer cells so the quads line up.
-  const cell = 0.28;
+  let maskRes = 0.035;
+  let mw = Math.ceil((mMaxX - mMinX) / maskRes);
+  let mh = Math.ceil((mMaxZ - mMinZ) / maskRes);
+  if (Math.max(mw, mh) > 4096) {
+    maskRes = Math.max(mMaxX - mMinX, mMaxZ - mMinZ) / 4096;
+    mw = Math.ceil((mMaxX - mMinX) / maskRes);
+    mh = Math.ceil((mMaxZ - mMinZ) / maskRes);
+  }
+  const texelX = (mMaxX - mMinX) / mw;
+  const texelZ = (mMaxZ - mMinZ) / mh;
+  const coverage = new Float32Array(mw * mh);
+
+  const stampR = PATH_HALF_WIDTH * 1.03 + fade;
+  for (const s of PATH_SAMPLES) {
+    const x0 = Math.max(0, Math.floor((s.x - stampR - mMinX) / texelX));
+    const x1 = Math.min(mw - 1, Math.ceil((s.x + stampR - mMinX) / texelX));
+    const z0 = Math.max(0, Math.floor((s.z - stampR - mMinZ) / texelZ));
+    const z1 = Math.min(mh - 1, Math.ceil((s.z + stampR - mMinZ) / texelZ));
+    for (let iz = z0; iz <= z1; iz++) {
+      const pz = mMinZ + (iz + 0.5) * texelZ;
+      for (let ix = x0; ix <= x1; ix++) {
+        const px = mMinX + (ix + 0.5) * texelX;
+        const d = Math.hypot(px - s.x, pz - s.z);
+        const w =
+          PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(pz * 0.13 + px * 0.07));
+        const a = (w - d) / fade;
+        if (a > 0) {
+          const i = iz * mw + ix;
+          if (a > coverage[i]) coverage[i] = a > 1 ? 1 : a;
+        }
+      }
+    }
+  }
+
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = mw;
+  maskCanvas.height = mh;
+  const mctx = maskCanvas.getContext('2d');
+  const mimg = mctx.createImageData(mw, mh);
+  for (let i = 0; i < coverage.length; i++) {
+    const v = Math.round(coverage[i] * 255);
+    const j = i * 4;
+    mimg.data[j] = v;
+    mimg.data[j + 1] = v;
+    mimg.data[j + 2] = v;
+    mimg.data[j + 3] = 255;
+  }
+  mctx.putImageData(mimg, 0, 0);
+
+  const trailMask = new THREE.CanvasTexture(maskCanvas);
+  trailMask.colorSpace = THREE.NoColorSpace;
+  trailMask.flipY = false;
+  trailMask.wrapS = trailMask.wrapT = THREE.ClampToEdgeWrapping;
+  trailMask.repeat.set(1, 1);
+  trailMask.anisotropy = renderer && renderer.capabilities
+    ? Math.min(8, renderer.capabilities.getMaxAnisotropy())
+    : 1;
+  trailMask.needsUpdate = true;
+
+  textures.pathMap.repeat.set(
+    (mMaxX - mMinX) / 3.2,
+    (mMaxZ - mMinZ) / 3.2
+  );
+  textures.pathMap.needsUpdate = true;
+
+  const cell = 0.26;
   const cells = new Map();
-  const reach = PATH_HALF_WIDTH + 1.2;
   const rCells = Math.ceil(reach / cell);
   for (const s of PATH_SAMPLES) {
     const cx = Math.floor(s.x / cell);
@@ -548,33 +616,41 @@ export function buildTerrain(scene, renderer) {
   const pUvs = [];
   const pColors = [];
   const pIndices = [];
-  const cEdge = new THREE.Color(0x6b5a42);
+  const cEdge = new THREE.Color(0x8a7457);
   const cInner = new THREE.Color(0xffffff);
   const pc = new THREE.Color();
+  const spanX = mMaxX - mMinX;
+  const spanZ = mMaxZ - mMinZ;
 
   for (const [ix, iz] of cells.values()) {
     const x = ix * cell;
     const z = iz * cell;
-    const cx = x + cell * 0.5;
-    const cz = z + cell * 0.5;
-    const near = nearestPath(cx, cz, reach + 0.5);
-    if (!near) continue;
-    const width =
-      PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
-    if (near.dist > width) continue;
-
-    const t = clamp01((near.dist - (width - 0.35)) / 0.35);
-    pc.copy(cEdge).lerp(cInner, 1 - t);
+    const cornerOffsets = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
+    const colors = [];
+    let inside = false;
+    for (const [ox, oz] of cornerOffsets) {
+      const vx = x + ox;
+      const vz = z + oz;
+      const near = nearestPath(vx, vz, reach + 0.4);
+      const width =
+        PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(vz * 0.13 + vx * 0.07));
+      const t = near
+        ? clamp01((width - near.dist) / Math.max(0.001, fade + 0.55))
+        : 0;
+      if (t > 0) inside = true;
+      pc.copy(cEdge).lerp(cInner, t);
+      colors.push(pc.r, pc.g, pc.b);
+    }
+    if (!inside) continue;
 
     const base = pPositions.length / 3;
-    const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
-    for (const [ox, oz] of corners) {
-      const px = x + ox;
-      const pz = z + oz;
-      pPositions.push(px, heightAt(px, pz) + 0.03, pz);
-      pUvs.push(px / 3, pz / 3);
-      pColors.push(pc.r, pc.g, pc.b);
-    }
+    cornerOffsets.forEach(([ox, oz], k) => {
+      const vx = x + ox;
+      const vz = z + oz;
+      pPositions.push(vx, heightAt(vx, vz) + 0.03, vz);
+      pUvs.push((vx - mMinX) / spanX, (vz - mMinZ) / spanZ);
+      pColors.push(colors[k * 3], colors[k * 3 + 1], colors[k * 3 + 2]);
+    });
     pIndices.push(base, base + 2, base + 1);
     pIndices.push(base + 1, base + 2, base + 3);
   }
@@ -588,6 +664,9 @@ export function buildTerrain(scene, renderer) {
 
   const pathMaterial = new THREE.MeshStandardMaterial({
     map: textures.pathMap,
+    alphaMap: trailMask,
+    transparent: true,
+    depthWrite: false,
     vertexColors: true,
     roughness: 0.96,
     metalness: 0,

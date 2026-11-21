@@ -8,7 +8,7 @@
 import * as THREE from './vendor/three.module.js';
 
 export const PATH_HALF_WIDTH = 1.25;
-export const HOUSE_POINT = { x: 0, z: -140 };
+export const HOUSE_POINT = { x: 0, z: -168 };
 
 const SAMPLE_STEP = 0.6;
 const CELL = 4;
@@ -124,13 +124,28 @@ const BRANCHES = [
     ]
   },
   {
-    id: 'q5-correct',
+    id: 'q5-east',
     kind: 'correct',
     points: [
       [1, -120],
-      [8, -124],
-      [4, -131],
-      [0, -135.5]
+      [7, -126],
+      [10, -134],
+      [6, -142],
+      [-2, -147],
+      [-5, -154],
+      [-2, -160],
+      [0, -163.5]
+    ]
+  },
+  {
+    id: 'q5-middle',
+    kind: 'decoy',
+    points: [
+      [1, -120],
+      [0, -126],
+      [-4, -131],
+      [-8, -137],
+      [-8, -143]
     ]
   },
   {
@@ -138,19 +153,11 @@ const BRANCHES = [
     kind: 'decoy',
     points: [
       [1, -120],
-      [-5, -123],
-      [-9, -127],
-      [-12, -133]
-    ]
-  },
-  {
-    id: 'q5-east',
-    kind: 'decoy',
-    points: [
-      [1, -120],
-      [7, -122],
-      [11, -126],
-      [14, -131]
+      [-6, -123],
+      [-11, -129],
+      [-14, -136],
+      [-18, -144],
+      [-17, -151]
     ]
   }
 ];

@@ -25003,7 +25003,7 @@
 
   // js/path.js
   var PATH_HALF_WIDTH = 1.25;
-  var HOUSE_POINT = { x: 0, z: -140 };
+  var HOUSE_POINT = { x: 0, z: -168 };
   var SAMPLE_STEP = 0.6;
   var CELL = 4;
   var PATH_MARGIN = 0.35;
@@ -25116,13 +25116,28 @@
       ]
     },
     {
-      id: "q5-correct",
+      id: "q5-east",
       kind: "correct",
       points: [
         [1, -120],
-        [8, -124],
-        [4, -131],
-        [0, -135.5]
+        [7, -126],
+        [10, -134],
+        [6, -142],
+        [-2, -147],
+        [-5, -154],
+        [-2, -160],
+        [0, -163.5]
+      ]
+    },
+    {
+      id: "q5-middle",
+      kind: "decoy",
+      points: [
+        [1, -120],
+        [0, -126],
+        [-4, -131],
+        [-8, -137],
+        [-8, -143]
       ]
     },
     {
@@ -25130,19 +25145,11 @@
       kind: "decoy",
       points: [
         [1, -120],
-        [-5, -123],
-        [-9, -127],
-        [-12, -133]
-      ]
-    },
-    {
-      id: "q5-east",
-      kind: "decoy",
-      points: [
-        [1, -120],
-        [7, -122],
-        [11, -126],
-        [14, -131]
+        [-6, -123],
+        [-11, -129],
+        [-14, -136],
+        [-18, -144],
+        [-17, -151]
       ]
     }
   ];
@@ -25356,14 +25363,14 @@
   // js/terrain.js
   var SIZE = 320;
   var HALF = SIZE / 2;
-  var MIN_X = -36;
-  var MAX_X = 36;
-  var MIN_Z = -152;
+  var MIN_X = -42;
+  var MAX_X = 42;
+  var MIN_Z = -186;
   var MAX_Z = 42;
   var WIDTH = MAX_X - MIN_X;
   var DEPTH = MAX_Z - MIN_Z;
-  var SEG_X = 84;
-  var SEG_Z = 232;
+  var SEG_X = 98;
+  var SEG_Z = 276;
   function hash2(ix, iy, seed) {
     let h = ix * 374761393 + iy * 668265263 + seed * 1442695041;
     h = (h ^ h >>> 13) * 1274126177;
@@ -25759,27 +25766,87 @@
     textures.pathMap.repeat.set(1, 1);
     textures.pathMap.wrapS = textures.pathMap.wrapT = RepeatWrapping;
     textures.pathMap.needsUpdate = true;
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minZ = Infinity;
-    let maxZ = -Infinity;
+    const maskPad = 0.6;
+    let mMinX = Infinity;
+    let mMinZ = Infinity;
+    let mMaxX = -Infinity;
+    let mMaxZ = -Infinity;
     for (const s of PATH_SAMPLES) {
-      if (s.x < minX)
-        minX = s.x;
-      if (s.x > maxX)
-        maxX = s.x;
-      if (s.z < minZ)
-        minZ = s.z;
-      if (s.z > maxZ)
-        maxZ = s.z;
+      if (s.x < mMinX)
+        mMinX = s.x;
+      if (s.x > mMaxX)
+        mMaxX = s.x;
+      if (s.z < mMinZ)
+        mMinZ = s.z;
+      if (s.z > mMaxZ)
+        mMaxZ = s.z;
     }
-    minX -= 4;
-    maxX += 4;
-    minZ -= 4;
-    maxZ += 4;
-    const cell = 0.28;
+    const fade = 0.5;
+    const reach = PATH_HALF_WIDTH * 1.03 + fade + maskPad;
+    mMinX -= reach;
+    mMaxX += reach;
+    mMinZ -= reach;
+    mMaxZ += reach;
+    let maskRes = 0.035;
+    let mw = Math.ceil((mMaxX - mMinX) / maskRes);
+    let mh = Math.ceil((mMaxZ - mMinZ) / maskRes);
+    if (Math.max(mw, mh) > 4096) {
+      maskRes = Math.max(mMaxX - mMinX, mMaxZ - mMinZ) / 4096;
+      mw = Math.ceil((mMaxX - mMinX) / maskRes);
+      mh = Math.ceil((mMaxZ - mMinZ) / maskRes);
+    }
+    const texelX = (mMaxX - mMinX) / mw;
+    const texelZ = (mMaxZ - mMinZ) / mh;
+    const coverage = new Float32Array(mw * mh);
+    const stampR = PATH_HALF_WIDTH * 1.03 + fade;
+    for (const s of PATH_SAMPLES) {
+      const x0 = Math.max(0, Math.floor((s.x - stampR - mMinX) / texelX));
+      const x1 = Math.min(mw - 1, Math.ceil((s.x + stampR - mMinX) / texelX));
+      const z0 = Math.max(0, Math.floor((s.z - stampR - mMinZ) / texelZ));
+      const z1 = Math.min(mh - 1, Math.ceil((s.z + stampR - mMinZ) / texelZ));
+      for (let iz = z0; iz <= z1; iz++) {
+        const pz2 = mMinZ + (iz + 0.5) * texelZ;
+        for (let ix = x0; ix <= x1; ix++) {
+          const px2 = mMinX + (ix + 0.5) * texelX;
+          const d = Math.hypot(px2 - s.x, pz2 - s.z);
+          const w = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(pz2 * 0.13 + px2 * 0.07));
+          const a = (w - d) / fade;
+          if (a > 0) {
+            const i = iz * mw + ix;
+            if (a > coverage[i])
+              coverage[i] = a > 1 ? 1 : a;
+          }
+        }
+      }
+    }
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.width = mw;
+    maskCanvas.height = mh;
+    const mctx = maskCanvas.getContext("2d");
+    const mimg = mctx.createImageData(mw, mh);
+    for (let i = 0; i < coverage.length; i++) {
+      const v = Math.round(coverage[i] * 255);
+      const j = i * 4;
+      mimg.data[j] = v;
+      mimg.data[j + 1] = v;
+      mimg.data[j + 2] = v;
+      mimg.data[j + 3] = 255;
+    }
+    mctx.putImageData(mimg, 0, 0);
+    const trailMask = new CanvasTexture(maskCanvas);
+    trailMask.colorSpace = NoColorSpace;
+    trailMask.flipY = false;
+    trailMask.wrapS = trailMask.wrapT = ClampToEdgeWrapping;
+    trailMask.repeat.set(1, 1);
+    trailMask.anisotropy = renderer2 && renderer2.capabilities ? Math.min(8, renderer2.capabilities.getMaxAnisotropy()) : 1;
+    trailMask.needsUpdate = true;
+    textures.pathMap.repeat.set(
+      (mMaxX - mMinX) / 3.2,
+      (mMaxZ - mMinZ) / 3.2
+    );
+    textures.pathMap.needsUpdate = true;
+    const cell = 0.26;
     const cells = /* @__PURE__ */ new Map();
-    const reach = PATH_HALF_WIDTH + 1.2;
     const rCells = Math.ceil(reach / cell);
     for (const s of PATH_SAMPLES) {
       const cx = Math.floor(s.x / cell);
@@ -25796,31 +25863,38 @@
     const pUvs = [];
     const pColors = [];
     const pIndices = [];
-    const cEdge = new Color(7035458);
+    const cEdge = new Color(9073751);
     const cInner = new Color(16777215);
     const pc = new Color();
+    const spanX = mMaxX - mMinX;
+    const spanZ = mMaxZ - mMinZ;
     for (const [ix, iz] of cells.values()) {
       const x = ix * cell;
       const z = iz * cell;
-      const cx = x + cell * 0.5;
-      const cz = z + cell * 0.5;
-      const near = nearestPath(cx, cz, reach + 0.5);
-      if (!near)
-        continue;
-      const width = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
-      if (near.dist > width)
-        continue;
-      const t = clamp01((near.dist - (width - 0.35)) / 0.35);
-      pc.copy(cEdge).lerp(cInner, 1 - t);
-      const base = pPositions.length / 3;
-      const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
-      for (const [ox, oz] of corners) {
-        const px2 = x + ox;
-        const pz2 = z + oz;
-        pPositions.push(px2, heightAt(px2, pz2) + 0.03, pz2);
-        pUvs.push(px2 / 3, pz2 / 3);
-        pColors.push(pc.r, pc.g, pc.b);
+      const cornerOffsets = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
+      const colors2 = [];
+      let inside = false;
+      for (const [ox, oz] of cornerOffsets) {
+        const vx = x + ox;
+        const vz = z + oz;
+        const near = nearestPath(vx, vz, reach + 0.4);
+        const width = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(vz * 0.13 + vx * 0.07));
+        const t = near ? clamp01((width - near.dist) / Math.max(1e-3, fade + 0.55)) : 0;
+        if (t > 0)
+          inside = true;
+        pc.copy(cEdge).lerp(cInner, t);
+        colors2.push(pc.r, pc.g, pc.b);
       }
+      if (!inside)
+        continue;
+      const base = pPositions.length / 3;
+      cornerOffsets.forEach(([ox, oz], k) => {
+        const vx = x + ox;
+        const vz = z + oz;
+        pPositions.push(vx, heightAt(vx, vz) + 0.03, vz);
+        pUvs.push((vx - mMinX) / spanX, (vz - mMinZ) / spanZ);
+        pColors.push(colors2[k * 3], colors2[k * 3 + 1], colors2[k * 3 + 2]);
+      });
       pIndices.push(base, base + 2, base + 1);
       pIndices.push(base + 1, base + 2, base + 3);
     }
@@ -25832,6 +25906,9 @@
     pathGeo.computeVertexNormals();
     const pathMaterial = new MeshStandardMaterial({
       map: textures.pathMap,
+      alphaMap: trailMask,
+      transparent: true,
+      depthWrite: false,
       vertexColors: true,
       roughness: 0.96,
       metalness: 0,
