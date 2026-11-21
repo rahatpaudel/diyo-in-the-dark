@@ -118,7 +118,7 @@ const FRAG = `
   }
 
   void main() {
-    float t = uTime * (1.0 + uSpeed * 0.06 + uFlutter * 0.55) + uSeed;
+    float t = uTime + uSeed;
 
     // Padded volume coordinates: x in [-0.45, 0.45], y in [-0.46, 1.29].
     float x = (vUv.x - 0.5) * 0.9;
@@ -240,6 +240,7 @@ export function createFlame(camera) {
   const target = new THREE.Vector2();
   const lastMotion = { localX: 0, localY: 0, localZ: 0, yawDelta: 0, pitchDelta: 0, speed: 0 };
   let time = 0;
+  let flowTime = 0;
   let flicker = 1;
   let currentScale = 1;
   let catchTime = 10;
@@ -248,7 +249,6 @@ export function createFlame(camera) {
     // Real elapsed time keeps the response identical at any frame rate.
     const elapsed = clamp(dt || 0, 0, 0.25);
     time += elapsed;
-    uniforms.uTime.value = time;
 
     const m = motion || {};
     lastMotion.localX = m.localX || 0;
@@ -276,9 +276,15 @@ export function createFlame(camera) {
     }
     uniforms.uLean.value.copy(lean);
 
-    const speed = clamp(lastMotion.speed / 3, 0, 1);
+    // Only sideways motion and turning stir the flame; walking forward or
+    // backward should leave its animation rhythm untouched.
+    const stir = clamp(
+      (Math.abs(lastMotion.localX) + Math.abs(lastMotion.yawDelta) * 25) / 3,
+      0,
+      1
+    );
     uniforms.uSpeed.value +=
-      (speed - uniforms.uSpeed.value) * (1 - Math.exp(-4 * elapsed));
+      (stir - uniforms.uSpeed.value) * (1 - Math.exp(-4 * elapsed));
 
     // The match is a small, nervous flame: give it extra turbulence while it
     // is at match scale, plus a short sputter after it catches.
@@ -288,6 +294,14 @@ export function createFlame(camera) {
     const flutterTarget = clamp(matchness * 0.8 + catchGlow, 0, 1.3);
     uniforms.uFlutter.value +=
       (flutterTarget - uniforms.uFlutter.value) * (1 - Math.exp(-11 * elapsed));
+
+    // Advance the noise phase by the current rate rather than scaling absolute
+    // time. Changing the rate then flows smoothly instead of rewinding the
+    // flame's animation when the player stops.
+    const flowRate =
+      1.0 + uniforms.uSpeed.value * 0.06 + uniforms.uFlutter.value * 0.55;
+    flowTime += elapsed * flowRate;
+    uniforms.uTime.value = flowTime;
 
     // Gentle swell for the diya; faster, deeper flutter for the match, with
     // a brief sputter as the flame catches.

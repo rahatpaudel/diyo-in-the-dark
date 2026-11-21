@@ -25004,7 +25004,7 @@
   }
 
   void main() {
-    float t = uTime * (1.0 + uSpeed * 0.06 + uFlutter * 0.55) + uSeed;
+    float t = uTime + uSeed;
 
     // Padded volume coordinates: x in [-0.45, 0.45], y in [-0.46, 1.29].
     float x = (vUv.x - 0.5) * 0.9;
@@ -25119,13 +25119,13 @@
     const target = new Vector2();
     const lastMotion = { localX: 0, localY: 0, localZ: 0, yawDelta: 0, pitchDelta: 0, speed: 0 };
     let time = 0;
+    let flowTime = 0;
     let flicker = 1;
     let currentScale = 1;
     let catchTime = 10;
     function update(dt, motion) {
       const elapsed = clamp2(dt || 0, 0, 0.25);
       time += elapsed;
-      uniforms.uTime.value = time;
       const m = motion || {};
       lastMotion.localX = m.localX || 0;
       lastMotion.localY = m.localY || 0;
@@ -25146,13 +25146,20 @@
         lean.addScaledVector(vel, step);
       }
       uniforms.uLean.value.copy(lean);
-      const speed = clamp2(lastMotion.speed / 3, 0, 1);
-      uniforms.uSpeed.value += (speed - uniforms.uSpeed.value) * (1 - Math.exp(-4 * elapsed));
+      const stir = clamp2(
+        (Math.abs(lastMotion.localX) + Math.abs(lastMotion.yawDelta) * 25) / 3,
+        0,
+        1
+      );
+      uniforms.uSpeed.value += (stir - uniforms.uSpeed.value) * (1 - Math.exp(-4 * elapsed));
       catchTime += elapsed;
       const matchness = clamp2((1 - currentScale) / 0.5, 0, 1);
       const catchGlow = catchTime < 0.9 ? Math.exp(-catchTime * 5.5) : 0;
       const flutterTarget = clamp2(matchness * 0.8 + catchGlow, 0, 1.3);
       uniforms.uFlutter.value += (flutterTarget - uniforms.uFlutter.value) * (1 - Math.exp(-11 * elapsed));
+      const flowRate = 1 + uniforms.uSpeed.value * 0.06 + uniforms.uFlutter.value * 0.55;
+      flowTime += elapsed * flowRate;
+      uniforms.uTime.value = flowTime;
       flicker = 0.98 + 0.011 * Math.sin(time * 2.7) + 6e-3 * Math.sin(time * 5.9 + 1.1) + 4e-3 * Math.sin(time * 0.9 + 0.4) + matchness * (0.028 * Math.sin(time * 21.3 + 0.4) + 0.017 * Math.sin(time * 33.7 + 2)) + catchGlow * (0.18 * Math.sin(time * 61) + 0.1 * Math.sin(time * 97 + 1.3));
       uniforms.uIntensity.value = flicker * 0.995;
     }
