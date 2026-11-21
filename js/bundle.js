@@ -801,17 +801,17 @@
       return this;
     }
     transpose() {
-      let tmp;
+      let tmp2;
       const m = this.elements;
-      tmp = m[1];
+      tmp2 = m[1];
       m[1] = m[3];
-      m[3] = tmp;
-      tmp = m[2];
+      m[3] = tmp2;
+      tmp2 = m[2];
       m[2] = m[6];
-      m[6] = tmp;
-      tmp = m[5];
+      m[6] = tmp2;
+      tmp2 = m[5];
       m[5] = m[7];
-      m[7] = tmp;
+      m[7] = tmp2;
       return this;
     }
     getNormalMatrix(matrix4) {
@@ -3697,25 +3697,25 @@
     }
     transpose() {
       const te = this.elements;
-      let tmp;
-      tmp = te[1];
+      let tmp2;
+      tmp2 = te[1];
       te[1] = te[4];
-      te[4] = tmp;
-      tmp = te[2];
+      te[4] = tmp2;
+      tmp2 = te[2];
       te[2] = te[8];
-      te[8] = tmp;
-      tmp = te[6];
+      te[8] = tmp2;
+      tmp2 = te[6];
       te[6] = te[9];
-      te[9] = tmp;
-      tmp = te[3];
+      te[9] = tmp2;
+      tmp2 = te[3];
       te[3] = te[12];
-      te[12] = tmp;
-      tmp = te[7];
+      te[12] = tmp2;
+      tmp2 = te[7];
       te[7] = te[13];
-      te[13] = tmp;
-      tmp = te[11];
+      te[13] = tmp2;
+      tmp2 = te[11];
       te[11] = te[14];
-      te[14] = tmp;
+      te[14] = tmp2;
       return this;
     }
     setPosition(x, y, z) {
@@ -6584,20 +6584,20 @@
           );
         }
       }
-      const tmp = new Vector3(), tmp2 = new Vector3();
+      const tmp2 = new Vector3(), tmp22 = new Vector3();
       const n = new Vector3(), n2 = new Vector3();
       function handleVertex(v) {
         n.fromArray(normals, v * 3);
         n2.copy(n);
         const t = tan1[v];
-        tmp.copy(t);
-        tmp.sub(n.multiplyScalar(n.dot(t))).normalize();
-        tmp2.crossVectors(n2, t);
-        const test = tmp2.dot(tan2[v]);
+        tmp2.copy(t);
+        tmp2.sub(n.multiplyScalar(n.dot(t))).normalize();
+        tmp22.crossVectors(n2, t);
+        const test = tmp22.dot(tan2[v]);
         const w = test < 0 ? -1 : 1;
-        tangents[v * 4] = tmp.x;
-        tangents[v * 4 + 1] = tmp.y;
-        tangents[v * 4 + 2] = tmp.z;
+        tangents[v * 4] = tmp2.x;
+        tangents[v * 4 + 1] = tmp2.y;
+        tangents[v * 4 + 2] = tmp2.z;
         tangents[v * 4 + 3] = w;
       }
       for (let i = 0, il = groups.length; i < il; ++i) {
@@ -7197,9 +7197,9 @@
   function mergeUniforms(uniforms) {
     const merged = {};
     for (let u = 0; u < uniforms.length; u++) {
-      const tmp = cloneUniforms(uniforms[u]);
-      for (const p in tmp) {
-        merged[p] = tmp[p];
+      const tmp2 = cloneUniforms(uniforms[u]);
+      for (const p in tmp2) {
+        merged[p] = tmp2[p];
       }
     }
     return merged;
@@ -13185,8 +13185,8 @@
       state2.ambient[0] = r;
       state2.ambient[1] = g;
       state2.ambient[2] = b;
-      const hash = state2.hash;
-      if (hash.directionalLength !== directionalLength || hash.pointLength !== pointLength || hash.spotLength !== spotLength || hash.rectAreaLength !== rectAreaLength || hash.hemiLength !== hemiLength || hash.numDirectionalShadows !== numDirectionalShadows || hash.numPointShadows !== numPointShadows || hash.numSpotShadows !== numSpotShadows || hash.numSpotMaps !== numSpotMaps || hash.numLightProbes !== numLightProbes) {
+      const hash3 = state2.hash;
+      if (hash3.directionalLength !== directionalLength || hash3.pointLength !== pointLength || hash3.spotLength !== spotLength || hash3.rectAreaLength !== rectAreaLength || hash3.hemiLength !== hemiLength || hash3.numDirectionalShadows !== numDirectionalShadows || hash3.numPointShadows !== numPointShadows || hash3.numSpotShadows !== numSpotShadows || hash3.numSpotMaps !== numSpotMaps || hash3.numLightProbes !== numLightProbes) {
         state2.directional.length = directionalLength;
         state2.spot.length = spotLength;
         state2.rectArea.length = rectAreaLength;
@@ -13204,16 +13204,16 @@
         state2.spotLightMap.length = numSpotMaps;
         state2.numSpotLightShadowsWithMaps = numSpotShadowsWithMaps;
         state2.numLightProbes = numLightProbes;
-        hash.directionalLength = directionalLength;
-        hash.pointLength = pointLength;
-        hash.spotLength = spotLength;
-        hash.rectAreaLength = rectAreaLength;
-        hash.hemiLength = hemiLength;
-        hash.numDirectionalShadows = numDirectionalShadows;
-        hash.numPointShadows = numPointShadows;
-        hash.numSpotShadows = numSpotShadows;
-        hash.numSpotMaps = numSpotMaps;
-        hash.numLightProbes = numLightProbes;
+        hash3.directionalLength = directionalLength;
+        hash3.pointLength = pointLength;
+        hash3.spotLength = spotLength;
+        hash3.rectAreaLength = rectAreaLength;
+        hash3.hemiLength = hemiLength;
+        hash3.numDirectionalShadows = numDirectionalShadows;
+        hash3.numPointShadows = numPointShadows;
+        hash3.numSpotShadows = numSpotShadows;
+        hash3.numSpotMaps = numSpotMaps;
+        hash3.numLightProbes = numLightProbes;
         state2.version = nextVersion++;
       }
     }
@@ -19251,6 +19251,345 @@
       });
     }
   }
+  var CanvasTexture = class extends Texture {
+    constructor(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy) {
+      super(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy);
+      this.isCanvasTexture = true;
+      this.needsUpdate = true;
+    }
+  };
+  var Curve = class {
+    constructor() {
+      this.type = "Curve";
+      this.arcLengthDivisions = 200;
+    }
+    // Virtual base class method to overwrite and implement in subclasses
+    //	- t [0 .. 1]
+    getPoint() {
+      console.warn("THREE.Curve: .getPoint() not implemented.");
+      return null;
+    }
+    // Get point at relative position in curve according to arc length
+    // - u [0 .. 1]
+    getPointAt(u, optionalTarget) {
+      const t = this.getUtoTmapping(u);
+      return this.getPoint(t, optionalTarget);
+    }
+    // Get sequence of points using getPoint( t )
+    getPoints(divisions = 5) {
+      const points = [];
+      for (let d = 0; d <= divisions; d++) {
+        points.push(this.getPoint(d / divisions));
+      }
+      return points;
+    }
+    // Get sequence of points using getPointAt( u )
+    getSpacedPoints(divisions = 5) {
+      const points = [];
+      for (let d = 0; d <= divisions; d++) {
+        points.push(this.getPointAt(d / divisions));
+      }
+      return points;
+    }
+    // Get total curve arc length
+    getLength() {
+      const lengths = this.getLengths();
+      return lengths[lengths.length - 1];
+    }
+    // Get list of cumulative segment lengths
+    getLengths(divisions = this.arcLengthDivisions) {
+      if (this.cacheArcLengths && this.cacheArcLengths.length === divisions + 1 && !this.needsUpdate) {
+        return this.cacheArcLengths;
+      }
+      this.needsUpdate = false;
+      const cache = [];
+      let current, last = this.getPoint(0);
+      let sum = 0;
+      cache.push(0);
+      for (let p = 1; p <= divisions; p++) {
+        current = this.getPoint(p / divisions);
+        sum += current.distanceTo(last);
+        cache.push(sum);
+        last = current;
+      }
+      this.cacheArcLengths = cache;
+      return cache;
+    }
+    updateArcLengths() {
+      this.needsUpdate = true;
+      this.getLengths();
+    }
+    // Given u ( 0 .. 1 ), get a t to find p. This gives you points which are equidistant
+    getUtoTmapping(u, distance) {
+      const arcLengths = this.getLengths();
+      let i = 0;
+      const il = arcLengths.length;
+      let targetArcLength;
+      if (distance) {
+        targetArcLength = distance;
+      } else {
+        targetArcLength = u * arcLengths[il - 1];
+      }
+      let low = 0, high = il - 1, comparison;
+      while (low <= high) {
+        i = Math.floor(low + (high - low) / 2);
+        comparison = arcLengths[i] - targetArcLength;
+        if (comparison < 0) {
+          low = i + 1;
+        } else if (comparison > 0) {
+          high = i - 1;
+        } else {
+          high = i;
+          break;
+        }
+      }
+      i = high;
+      if (arcLengths[i] === targetArcLength) {
+        return i / (il - 1);
+      }
+      const lengthBefore = arcLengths[i];
+      const lengthAfter = arcLengths[i + 1];
+      const segmentLength = lengthAfter - lengthBefore;
+      const segmentFraction = (targetArcLength - lengthBefore) / segmentLength;
+      const t = (i + segmentFraction) / (il - 1);
+      return t;
+    }
+    // Returns a unit vector tangent at t
+    // In case any sub curve does not implement its tangent derivation,
+    // 2 points a small delta apart will be used to find its gradient
+    // which seems to give a reasonable approximation
+    getTangent(t, optionalTarget) {
+      const delta = 1e-4;
+      let t1 = t - delta;
+      let t2 = t + delta;
+      if (t1 < 0)
+        t1 = 0;
+      if (t2 > 1)
+        t2 = 1;
+      const pt1 = this.getPoint(t1);
+      const pt2 = this.getPoint(t2);
+      const tangent = optionalTarget || (pt1.isVector2 ? new Vector2() : new Vector3());
+      tangent.copy(pt2).sub(pt1).normalize();
+      return tangent;
+    }
+    getTangentAt(u, optionalTarget) {
+      const t = this.getUtoTmapping(u);
+      return this.getTangent(t, optionalTarget);
+    }
+    computeFrenetFrames(segments, closed) {
+      const normal = new Vector3();
+      const tangents = [];
+      const normals = [];
+      const binormals = [];
+      const vec = new Vector3();
+      const mat = new Matrix4();
+      for (let i = 0; i <= segments; i++) {
+        const u = i / segments;
+        tangents[i] = this.getTangentAt(u, new Vector3());
+      }
+      normals[0] = new Vector3();
+      binormals[0] = new Vector3();
+      let min = Number.MAX_VALUE;
+      const tx = Math.abs(tangents[0].x);
+      const ty = Math.abs(tangents[0].y);
+      const tz = Math.abs(tangents[0].z);
+      if (tx <= min) {
+        min = tx;
+        normal.set(1, 0, 0);
+      }
+      if (ty <= min) {
+        min = ty;
+        normal.set(0, 1, 0);
+      }
+      if (tz <= min) {
+        normal.set(0, 0, 1);
+      }
+      vec.crossVectors(tangents[0], normal).normalize();
+      normals[0].crossVectors(tangents[0], vec);
+      binormals[0].crossVectors(tangents[0], normals[0]);
+      for (let i = 1; i <= segments; i++) {
+        normals[i] = normals[i - 1].clone();
+        binormals[i] = binormals[i - 1].clone();
+        vec.crossVectors(tangents[i - 1], tangents[i]);
+        if (vec.length() > Number.EPSILON) {
+          vec.normalize();
+          const theta = Math.acos(clamp(tangents[i - 1].dot(tangents[i]), -1, 1));
+          normals[i].applyMatrix4(mat.makeRotationAxis(vec, theta));
+        }
+        binormals[i].crossVectors(tangents[i], normals[i]);
+      }
+      if (closed === true) {
+        let theta = Math.acos(clamp(normals[0].dot(normals[segments]), -1, 1));
+        theta /= segments;
+        if (tangents[0].dot(vec.crossVectors(normals[0], normals[segments])) > 0) {
+          theta = -theta;
+        }
+        for (let i = 1; i <= segments; i++) {
+          normals[i].applyMatrix4(mat.makeRotationAxis(tangents[i], theta * i));
+          binormals[i].crossVectors(tangents[i], normals[i]);
+        }
+      }
+      return {
+        tangents,
+        normals,
+        binormals
+      };
+    }
+    clone() {
+      return new this.constructor().copy(this);
+    }
+    copy(source) {
+      this.arcLengthDivisions = source.arcLengthDivisions;
+      return this;
+    }
+    toJSON() {
+      const data = {
+        metadata: {
+          version: 4.6,
+          type: "Curve",
+          generator: "Curve.toJSON"
+        }
+      };
+      data.arcLengthDivisions = this.arcLengthDivisions;
+      data.type = this.type;
+      return data;
+    }
+    fromJSON(json) {
+      this.arcLengthDivisions = json.arcLengthDivisions;
+      return this;
+    }
+  };
+  function CubicPoly() {
+    let c0 = 0, c1 = 0, c2 = 0, c3 = 0;
+    function init2(x0, x1, t0, t1) {
+      c0 = x0;
+      c1 = t0;
+      c2 = -3 * x0 + 3 * x1 - 2 * t0 - t1;
+      c3 = 2 * x0 - 2 * x1 + t0 + t1;
+    }
+    return {
+      initCatmullRom: function(x0, x1, x2, x3, tension) {
+        init2(x1, x2, tension * (x2 - x0), tension * (x3 - x1));
+      },
+      initNonuniformCatmullRom: function(x0, x1, x2, x3, dt0, dt1, dt2) {
+        let t1 = (x1 - x0) / dt0 - (x2 - x0) / (dt0 + dt1) + (x2 - x1) / dt1;
+        let t2 = (x2 - x1) / dt1 - (x3 - x1) / (dt1 + dt2) + (x3 - x2) / dt2;
+        t1 *= dt1;
+        t2 *= dt1;
+        init2(x1, x2, t1, t2);
+      },
+      calc: function(t) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        return c0 + c1 * t + c2 * t2 + c3 * t3;
+      }
+    };
+  }
+  var tmp = /* @__PURE__ */ new Vector3();
+  var px = /* @__PURE__ */ new CubicPoly();
+  var py = /* @__PURE__ */ new CubicPoly();
+  var pz = /* @__PURE__ */ new CubicPoly();
+  var CatmullRomCurve3 = class extends Curve {
+    constructor(points = [], closed = false, curveType = "centripetal", tension = 0.5) {
+      super();
+      this.isCatmullRomCurve3 = true;
+      this.type = "CatmullRomCurve3";
+      this.points = points;
+      this.closed = closed;
+      this.curveType = curveType;
+      this.tension = tension;
+    }
+    getPoint(t, optionalTarget = new Vector3()) {
+      const point = optionalTarget;
+      const points = this.points;
+      const l = points.length;
+      const p = (l - (this.closed ? 0 : 1)) * t;
+      let intPoint = Math.floor(p);
+      let weight = p - intPoint;
+      if (this.closed) {
+        intPoint += intPoint > 0 ? 0 : (Math.floor(Math.abs(intPoint) / l) + 1) * l;
+      } else if (weight === 0 && intPoint === l - 1) {
+        intPoint = l - 2;
+        weight = 1;
+      }
+      let p0, p3;
+      if (this.closed || intPoint > 0) {
+        p0 = points[(intPoint - 1) % l];
+      } else {
+        tmp.subVectors(points[0], points[1]).add(points[0]);
+        p0 = tmp;
+      }
+      const p1 = points[intPoint % l];
+      const p2 = points[(intPoint + 1) % l];
+      if (this.closed || intPoint + 2 < l) {
+        p3 = points[(intPoint + 2) % l];
+      } else {
+        tmp.subVectors(points[l - 1], points[l - 2]).add(points[l - 1]);
+        p3 = tmp;
+      }
+      if (this.curveType === "centripetal" || this.curveType === "chordal") {
+        const pow = this.curveType === "chordal" ? 0.5 : 0.25;
+        let dt0 = Math.pow(p0.distanceToSquared(p1), pow);
+        let dt1 = Math.pow(p1.distanceToSquared(p2), pow);
+        let dt2 = Math.pow(p2.distanceToSquared(p3), pow);
+        if (dt1 < 1e-4)
+          dt1 = 1;
+        if (dt0 < 1e-4)
+          dt0 = dt1;
+        if (dt2 < 1e-4)
+          dt2 = dt1;
+        px.initNonuniformCatmullRom(p0.x, p1.x, p2.x, p3.x, dt0, dt1, dt2);
+        py.initNonuniformCatmullRom(p0.y, p1.y, p2.y, p3.y, dt0, dt1, dt2);
+        pz.initNonuniformCatmullRom(p0.z, p1.z, p2.z, p3.z, dt0, dt1, dt2);
+      } else if (this.curveType === "catmullrom") {
+        px.initCatmullRom(p0.x, p1.x, p2.x, p3.x, this.tension);
+        py.initCatmullRom(p0.y, p1.y, p2.y, p3.y, this.tension);
+        pz.initCatmullRom(p0.z, p1.z, p2.z, p3.z, this.tension);
+      }
+      point.set(
+        px.calc(weight),
+        py.calc(weight),
+        pz.calc(weight)
+      );
+      return point;
+    }
+    copy(source) {
+      super.copy(source);
+      this.points = [];
+      for (let i = 0, l = source.points.length; i < l; i++) {
+        const point = source.points[i];
+        this.points.push(point.clone());
+      }
+      this.closed = source.closed;
+      this.curveType = source.curveType;
+      this.tension = source.tension;
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.points = [];
+      for (let i = 0, l = this.points.length; i < l; i++) {
+        const point = this.points[i];
+        data.points.push(point.toArray());
+      }
+      data.closed = this.closed;
+      data.curveType = this.curveType;
+      data.tension = this.tension;
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.points = [];
+      for (let i = 0, l = json.points.length; i < l; i++) {
+        const point = json.points[i];
+        this.points.push(new Vector3().fromArray(point));
+      }
+      this.closed = json.closed;
+      this.curveType = json.curveType;
+      this.tension = json.tension;
+      return this;
+    }
+  };
   var CylinderGeometry = class _CylinderGeometry extends BufferGeometry {
     constructor(radiusTop = 1, radiusBottom = 1, height = 1, radialSegments = 32, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
       super();
@@ -22340,17 +22679,17 @@
         return coplanarIntersectsTriangle(this, other, target, suppressLog);
       }
       if (bounds1.y < bounds1.x) {
-        const tmp = bounds1.y;
+        const tmp2 = bounds1.y;
         bounds1.y = bounds1.x;
-        bounds1.x = tmp;
+        bounds1.x = tmp2;
         tempPoint.copy(edge1.start);
         edge1.start.copy(edge1.end);
         edge1.end.copy(tempPoint);
       }
       if (bounds2.y < bounds2.x) {
-        const tmp = bounds2.y;
+        const tmp2 = bounds2.y;
         bounds2.y = bounds2.x;
-        bounds2.x = tmp;
+        bounds2.x = tmp2;
         tempPoint.copy(edge2.start);
         edge2.start.copy(edge2.end);
         edge2.end.copy(tempPoint);
@@ -28799,6 +29138,734 @@
     ]
   };
 
+  // js/path.js
+  var PATH_HALF_WIDTH = 1.35;
+  var SAMPLE_STEP = 0.6;
+  var CELL = 4;
+  var PATH_DECISIONS = [
+    { id: "q1", x: 1, z: -12, riddle: 1, choices: 2 },
+    { id: "q2", x: 14, z: -10, riddle: 2, choices: 2 },
+    { id: "q3", x: 12, z: 6, riddle: 3, choices: 2 },
+    { id: "q4", x: 24, z: 4, riddle: 4, choices: 3 },
+    { id: "q5", x: 24, z: 17, riddle: 5, choices: 3 }
+  ];
+  var HOUSE_POINT = { x: 25, z: 25 };
+  var BRANCHES = [
+    // Approach from the spawn, curving gently around the strike rock.
+    {
+      id: "start",
+      kind: "correct",
+      points: [
+        [0, 0],
+        [1.2, -3.5],
+        [1.4, -7.5],
+        [1, -12]
+      ]
+    },
+    // Q1: mostly straight east, decoy turns west then south.
+    {
+      id: "q1-correct",
+      kind: "correct",
+      points: [
+        [1, -12],
+        [5, -13.5],
+        [10, -12.5],
+        [14, -10]
+      ]
+    },
+    {
+      id: "q1-decoy",
+      kind: "decoy",
+      points: [
+        [1, -12],
+        [-1, -14],
+        [-6, -14.5],
+        [-9, -18],
+        [-10, -22]
+      ]
+    },
+    // Q2: a soft S north; decoy peels south-east.
+    {
+      id: "q2-correct",
+      kind: "correct",
+      points: [
+        [14, -10],
+        [15.5, -5],
+        [14.5, 0],
+        [12, 6]
+      ]
+    },
+    {
+      id: "q2-decoy",
+      kind: "decoy",
+      points: [
+        [14, -10],
+        [18, -13],
+        [22, -17],
+        [24, -22]
+      ]
+    },
+    // Q3: mostly straight east; decoy curves west.
+    {
+      id: "q3-correct",
+      kind: "correct",
+      points: [
+        [12, 6],
+        [16, 7],
+        [20, 6.5],
+        [24, 4]
+      ]
+    },
+    {
+      id: "q3-decoy",
+      kind: "decoy",
+      points: [
+        [12, 6],
+        [9, 9],
+        [5, 12],
+        [0, 17]
+      ]
+    },
+    // Q4: three choices. Correct north; decoys peel east and south.
+    {
+      id: "q4-correct",
+      kind: "correct",
+      points: [
+        [24, 4],
+        [25, 8],
+        [24.5, 13],
+        [24, 17]
+      ]
+    },
+    {
+      id: "q4-east",
+      kind: "decoy",
+      points: [
+        [24, 4],
+        [28, 6],
+        [32, 8],
+        [36, 12]
+      ]
+    },
+    {
+      id: "q4-south",
+      kind: "decoy",
+      points: [
+        [24, 4],
+        [26, 0],
+        [27.5, -4],
+        [29, -7]
+      ]
+    },
+    // Q5: three choices. Correct runs to the house; decoys flank it.
+    {
+      id: "q5-correct",
+      kind: "correct",
+      points: [
+        [24, 17],
+        [24.5, 20],
+        [25, 23],
+        [25, 25]
+      ]
+    },
+    {
+      id: "q5-west",
+      kind: "decoy",
+      points: [
+        [24, 17],
+        [21, 19],
+        [16, 21],
+        [13, 26]
+      ]
+    },
+    {
+      id: "q5-east",
+      kind: "decoy",
+      points: [
+        [24, 17],
+        [27, 19],
+        [31, 21],
+        [35, 24]
+      ]
+    }
+  ];
+  var PATH_BRANCHES = [];
+  var PATH_SAMPLES = [];
+  for (const def of BRANCHES) {
+    const curve = new CatmullRomCurve3(
+      def.points.map(([x, z]) => new Vector3(x, 0, z)),
+      false,
+      "catmullrom",
+      0.5
+    );
+    const length = curve.getLength();
+    const count = Math.max(2, Math.ceil(length / SAMPLE_STEP));
+    const points = curve.getSpacedPoints(count);
+    const samples = points.map((p, i) => ({
+      x: p.x,
+      z: p.z,
+      t: i / count,
+      branch: def.id,
+      h: 0
+    }));
+    const branch = {
+      id: def.id,
+      kind: def.kind,
+      points: def.points,
+      samples,
+      length
+    };
+    PATH_BRANCHES.push(branch);
+    for (const s of samples)
+      PATH_SAMPLES.push(s);
+  }
+  for (const d of PATH_DECISIONS) {
+    d.options = PATH_BRANCHES.filter(
+      (b) => b.points[0][0] === d.x && b.points[0][1] === d.z
+    ).map((b) => ({
+      id: b.id,
+      correct: b.kind === "correct",
+      length: Math.round(b.length * 10) / 10
+    }));
+  }
+  var pathGrid = /* @__PURE__ */ new Map();
+  var cellKey = (x, z) => `${x}:${z}`;
+  for (let i = 0; i < PATH_SAMPLES.length; i++) {
+    const s = PATH_SAMPLES[i];
+    const key = cellKey(Math.floor(s.x / CELL), Math.floor(s.z / CELL));
+    let bucket = pathGrid.get(key);
+    if (!bucket) {
+      bucket = [];
+      pathGrid.set(key, bucket);
+    }
+    bucket.push(i);
+  }
+  function nearestPath(x, z, maxDist = 6) {
+    const range = Math.ceil(maxDist / CELL);
+    const cx = Math.floor(x / CELL);
+    const cz = Math.floor(z / CELL);
+    let bestD2 = maxDist * maxDist;
+    let best = -1;
+    for (let ix = cx - range; ix <= cx + range; ix++) {
+      for (let iz = cz - range; iz <= cz + range; iz++) {
+        const bucket = pathGrid.get(cellKey(ix, iz));
+        if (!bucket)
+          continue;
+        for (let j = 0; j < bucket.length; j++) {
+          const s = PATH_SAMPLES[bucket[j]];
+          const dx = s.x - x;
+          const dz = s.z - z;
+          const d2 = dx * dx + dz * dz;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = bucket[j];
+          }
+        }
+      }
+    }
+    if (best < 0)
+      return null;
+    return {
+      dist: Math.sqrt(bestD2),
+      sample: PATH_SAMPLES[best],
+      branch: PATH_SAMPLES[best].branch
+    };
+  }
+  function nearestDecision(x, z, maxDist = 6) {
+    let best = null;
+    let bestD2 = maxDist * maxDist;
+    for (const d of PATH_DECISIONS) {
+      const dx = d.x - x;
+      const dz = d.z - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        best = d;
+      }
+    }
+    return best ? { dist: Math.sqrt(bestD2), node: best } : null;
+  }
+  var TREE_VARIANTS = [
+    { name: "Tree_Small_1", radius: 2.04 },
+    { name: "Tree_Small_2", radius: 3.41 },
+    { name: "Tree_Bare_1", radius: 2.02 },
+    { name: "Tree_Bare_2", radius: 3.41 },
+    { name: "Tree_Large_1", radius: 2.11 },
+    { name: "Tree_Large_2", radius: 2.47 },
+    { name: "Tree_Stump", radius: 0.64 }
+  ];
+  function hash(a, b, c) {
+    let h = a * 374761393 + b * 668265263 + c * 1442695041;
+    h = (h ^ h >>> 13) * 1274126177;
+    return ((h ^ h >>> 16) >>> 0) / 4294967295;
+  }
+  var PATH_EXTRAS = /* @__PURE__ */ Object.create(null);
+  var addExtra = (name, x, z, rot, scale) => {
+    const list = PATH_EXTRAS[name] || (PATH_EXTRAS[name] = []);
+    list.push({ x, z, rot, scale });
+  };
+  for (const branch of PATH_BRANCHES) {
+    const isDecoy = branch.kind === "decoy";
+    const step = Math.max(1, Math.round(5.2 / SAMPLE_STEP));
+    for (let i = step; i < branch.samples.length - 2; i += step) {
+      const s = branch.samples[i];
+      const prev = branch.samples[i - 1];
+      const next = branch.samples[i + 1];
+      let dx = next.x - prev.x;
+      let dz = next.z - prev.z;
+      const len = Math.hypot(dx, dz) || 1;
+      dx /= len;
+      dz /= len;
+      if (Math.hypot(s.x, s.z) < 7)
+        continue;
+      if (Math.hypot(s.x - HOUSE_POINT.x, s.z - HOUSE_POINT.z) < 7)
+        continue;
+      if (isDecoy && i > branch.samples.length - 8)
+        continue;
+      const node = nearestDecision(s.x, s.z, 5);
+      if (node)
+        continue;
+      for (const side of [-1, 1]) {
+        const h = hash(i, side, branch.id.length * 97);
+        if (h > 0.62)
+          continue;
+        const variant = TREE_VARIANTS[(i + (side > 0 ? 3 : 0)) % TREE_VARIANTS.length];
+        const scale = 0.82 + hash(i, side, 311) * 0.28;
+        const offset = variant.radius * scale + PATH_HALF_WIDTH + 0.9;
+        const nx = s.x - dz * side * offset;
+        const nz = s.z + dx * side * offset;
+        const other = nearestPath(nx, nz, offset + 4);
+        if (other && other.dist < offset - 0.3)
+          continue;
+        addExtra(
+          variant.name,
+          nx,
+          nz,
+          hash(i, side, 733) * Math.PI * 2,
+          scale
+        );
+      }
+    }
+  }
+  for (const branch of PATH_BRANCHES) {
+    if (branch.kind !== "decoy")
+      continue;
+    const end = branch.samples[branch.samples.length - 1];
+    const prev = branch.samples[branch.samples.length - 3] || branch.samples[0];
+    let dx = end.x - prev.x;
+    let dz = end.z - prev.z;
+    const len = Math.hypot(dx, dz) || 1;
+    dx /= len;
+    dz /= len;
+    const px2 = -dz;
+    const pz2 = dx;
+    const across = Math.atan2(px2, pz2);
+    addExtra("Tree_Fallen", end.x, end.z, across, 1);
+    addExtra(
+      "Tree_Large_1",
+      end.x + dx * 2.6 + px2 * 0.9,
+      end.z + dz * 2.6 + pz2 * 0.9,
+      hash(end.x, end.z, 1) * Math.PI * 2,
+      1
+    );
+    addExtra(
+      "Tree_Small_2",
+      end.x + dx * 2.2 - px2 * 1.15,
+      end.z + dz * 2.2 - pz2 * 1.15,
+      hash(end.x, end.z, 2) * Math.PI * 2,
+      0.92
+    );
+    addExtra(
+      "Rock_Medium",
+      end.x + dx * 1.5 + px2 * 1.9,
+      end.z + dz * 1.5 + pz2 * 1.9,
+      hash(end.x, end.z, 3) * Math.PI * 2,
+      0.78
+    );
+  }
+  function pathSummary() {
+    return {
+      decisions: PATH_DECISIONS.map((d) => ({ ...d })),
+      branches: PATH_BRANCHES.map((b) => ({
+        id: b.id,
+        kind: b.kind,
+        length: b.length
+      }))
+    };
+  }
+
+  // js/terrain.js
+  var SIZE = 220;
+  var SEGMENTS = 224;
+  var HALF = SIZE / 2;
+  function hash2(ix, iy, seed) {
+    let h = ix * 374761393 + iy * 668265263 + seed * 1442695041;
+    h = (h ^ h >>> 13) * 1274126177;
+    return ((h ^ h >>> 16) >>> 0) / 4294967295;
+  }
+  var smooth = (t) => t * t * (3 - 2 * t);
+  var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+  var mix = (a, b, t) => a + (b - a) * t;
+  function noise2(x, y, seed) {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = smooth(x - ix);
+    const fy = smooth(y - iy);
+    const v00 = hash2(ix, iy, seed);
+    const v10 = hash2(ix + 1, iy, seed);
+    const v01 = hash2(ix, iy + 1, seed);
+    const v11 = hash2(ix + 1, iy + 1, seed);
+    return mix(mix(v00, v10, fx), mix(v01, v11, fx), fy);
+  }
+  function fbm(x, y, octaves, seed) {
+    let sum = 0;
+    let amp = 0.5;
+    let norm = 0;
+    let f = 1;
+    for (let i = 0; i < octaves; i++) {
+      sum += noise2(x * f, y * f, seed + i * 131) * amp;
+      norm += amp;
+      amp *= 0.5;
+      f *= 2;
+    }
+    return sum / norm;
+  }
+  function periodicNoise(x, y, period, seed) {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+    const wrap = (i) => (i % period + period) % period;
+    const grad = (gx, gy) => {
+      const a = hash2(wrap(gx), wrap(gy), seed) * Math.PI * 2;
+      return [Math.cos(a), Math.sin(a)];
+    };
+    const ux = smooth(fx);
+    const uy = smooth(fy);
+    const g00 = grad(ix, iy);
+    const g10 = grad(ix + 1, iy);
+    const g01 = grad(ix, iy + 1);
+    const g11 = grad(ix + 1, iy + 1);
+    const n00 = g00[0] * fx + g00[1] * fy;
+    const n10 = g10[0] * (fx - 1) + g10[1] * fy;
+    const n01 = g01[0] * fx + g01[1] * (fy - 1);
+    const n11 = g11[0] * (fx - 1) + g11[1] * (fy - 1);
+    const n = mix(mix(n00, n10, ux), mix(n01, n11, ux), uy);
+    return clamp01(n * 0.75 + 0.5);
+  }
+  function periodicFbm(u, v, period, octaves, seed) {
+    let sum = 0;
+    let amp = 0.5;
+    let norm = 0;
+    let p = period;
+    for (let i = 0; i < octaves; i++) {
+      sum += periodicNoise(u * p, v * p, p, seed + i * 197) * amp;
+      norm += amp;
+      amp *= 0.5;
+      p *= 2;
+    }
+    return sum / norm;
+  }
+  function macroHeight(x, z) {
+    const broad = fbm(x * 0.026 + 11.3, z * 0.026 - 4.7, 4, 1337);
+    const mid = fbm(x * 0.085 + 3.1, z * 0.085 + 8.2, 3, 991);
+    return (broad - 0.5) * 2.9 + (mid - 0.5) * 0.75;
+  }
+  function baseHeight(x, z) {
+    const fine = fbm(x * 0.24 - 2, z * 0.24 + 1.3, 3, 353);
+    const near = nearestPath(x, z, 9);
+    const away = near ? smooth(clamp01((near.dist - 3) / 5)) : 1;
+    const bump = (fbm(x * 0.16 + 7.3, z * 0.16 - 9.1, 3, 441) - 0.5) * 0.6 * away;
+    return macroHeight(x, z) + (fine - 0.5) * 0.22 + bump;
+  }
+  for (const s of PATH_SAMPLES)
+    s.h = macroHeight(s.x, s.z);
+  function finalHeight(x, z) {
+    let h = baseHeight(x, z);
+    const near = nearestPath(x, z, 4.5);
+    if (near) {
+      const blend = 1 - smooth(clamp01((near.dist - 1.6) / 1.6));
+      h = mix(h, near.sample.h, blend);
+    }
+    const node = nearestDecision(x, z, 5);
+    if (node) {
+      const blend = 1 - smooth(clamp01((node.dist - 2.4) / 1.8));
+      h = mix(h, macroHeight(node.node.x, node.node.z), blend);
+    }
+    const spawn = Math.hypot(x, z);
+    const spawnBlend = 1 - smooth(clamp01((spawn - 4.5) / 4.5));
+    h = mix(h, 0, spawnBlend);
+    const house2 = Math.hypot(x - 25, z - 25);
+    const houseBlend = 1 - smooth(clamp01((house2 - 4.5) / 4));
+    h = mix(h, 0, houseBlend);
+    return h;
+  }
+  function createGroundTextures(renderer2) {
+    const size = 1024;
+    const albedoCanvas = document.createElement("canvas");
+    albedoCanvas.width = albedoCanvas.height = size;
+    const normalCanvas = document.createElement("canvas");
+    normalCanvas.width = normalCanvas.height = size;
+    const actx = albedoCanvas.getContext("2d");
+    const nctx = normalCanvas.getContext("2d");
+    const aimg = actx.createImageData(size, size);
+    const nimg = nctx.createImageData(size, size);
+    const heights = new Float32Array(size * size);
+    const soil = [48, 40, 30];
+    const moss = [55, 68, 43];
+    const leaf = [65, 49, 33];
+    const light2 = [81, 66, 46];
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = x / size;
+        const v = y / size;
+        const broad = periodicFbm(u, v, 8, 5, 101);
+        const patch = periodicFbm(u, v, 16, 4, 717);
+        const fine = periodicFbm(u, v, 64, 3, 913);
+        const mossMix = smooth(clamp01((broad - 0.34) / 0.36));
+        const leafMix = smooth(clamp01((patch - 0.56) / 0.28));
+        let r = mix(soil[0], moss[0], mossMix);
+        let g = mix(soil[1], moss[1], mossMix);
+        let b = mix(soil[2], moss[2], mossMix);
+        r = mix(r, leaf[0], leafMix * 0.6);
+        g = mix(g, leaf[1], leafMix * 0.6);
+        b = mix(b, leaf[2], leafMix * 0.6);
+        const grain = (fine - 0.5) * 16 + (patch - 0.5) * 9;
+        const speck = fine > 0.86 ? (fine - 0.86) * 110 : 0;
+        r = Math.max(0, Math.min(255, r + grain + speck * 0.7));
+        g = Math.max(0, Math.min(255, g + grain + speck * 0.55));
+        b = Math.max(0, Math.min(255, b + grain * 0.8 + speck * 0.35));
+        if (fine > 0.92) {
+          r = mix(r, light2[0], 0.4);
+          g = mix(g, light2[1], 0.35);
+          b = mix(b, light2[2], 0.3);
+        }
+        const i = (y * size + x) * 4;
+        aimg.data[i] = r;
+        aimg.data[i + 1] = g;
+        aimg.data[i + 2] = b;
+        aimg.data[i + 3] = 255;
+        heights[y * size + x] = broad * 0.35 + patch * 0.45 + fine * 0.2;
+      }
+    }
+    const wrap = (i) => (i + size) % size;
+    const strength = 0.8;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const hL = heights[y * size + wrap(x - 1)];
+        const hR = heights[y * size + wrap(x + 1)];
+        const hD = heights[wrap(y - 1) * size + x];
+        const hU = heights[wrap(y + 1) * size + x];
+        let nx = (hL - hR) * strength;
+        let ny = (hD - hU) * strength;
+        let nz = 1;
+        const inv = 1 / Math.hypot(nx, ny, nz);
+        nx *= inv;
+        ny *= inv;
+        nz *= inv;
+        const i = (y * size + x) * 4;
+        nimg.data[i] = (nx * 0.5 + 0.5) * 255;
+        nimg.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+        nimg.data[i + 2] = (nz * 0.5 + 0.5) * 255;
+        nimg.data[i + 3] = 255;
+      }
+    }
+    actx.putImageData(aimg, 0, 0);
+    nctx.putImageData(nimg, 0, 0);
+    const pathCanvas = document.createElement("canvas");
+    pathCanvas.width = pathCanvas.height = size;
+    const pctx = pathCanvas.getContext("2d");
+    pctx.clearRect(0, 0, size, size);
+    pctx.lineCap = "round";
+    pctx.lineJoin = "round";
+    const px2 = (x) => (x + HALF) / SIZE * size;
+    const py2 = (z) => (z + HALF) / SIZE * size;
+    const coreWidth = PATH_HALF_WIDTH * 2 / SIZE * size;
+    for (const branch of PATH_BRANCHES) {
+      pctx.strokeStyle = "rgb(48, 48, 48)";
+      pctx.lineWidth = coreWidth * 1.18;
+      pctx.beginPath();
+      branch.samples.forEach((s, i) => {
+        if (i === 0)
+          pctx.moveTo(px2(s.x), py2(s.z));
+        else
+          pctx.lineTo(px2(s.x), py2(s.z));
+      });
+      pctx.stroke();
+      pctx.strokeStyle = "rgb(255, 255, 255)";
+      pctx.lineWidth = coreWidth;
+      pctx.beginPath();
+      branch.samples.forEach((s, i) => {
+        if (i === 0)
+          pctx.moveTo(px2(s.x), py2(s.z));
+        else
+          pctx.lineTo(px2(s.x), py2(s.z));
+      });
+      pctx.stroke();
+    }
+    for (const d of PATH_DECISIONS) {
+      pctx.fillStyle = "rgb(44, 44, 44)";
+      pctx.beginPath();
+      pctx.arc(px2(d.x), py2(d.z), 3 / SIZE * size, 0, Math.PI * 2);
+      pctx.fill();
+    }
+    const maskData = pctx.getImageData(0, 0, size, size).data;
+    const emissiveCanvas = document.createElement("canvas");
+    emissiveCanvas.width = emissiveCanvas.height = size;
+    const ectx = emissiveCanvas.getContext("2d");
+    const eimg = ectx.createImageData(size, size);
+    for (let i = 0; i < aimg.data.length; i += 4) {
+      const m = maskData[i] / 255;
+      const p = i / 4;
+      const u = p % size / size;
+      const v = Math.floor(p / size) / size;
+      const grain = periodicNoise(u * 192, v * 192, 192, 527);
+      const g = 0.7 + grain * 0.6;
+      const r = (aimg.data[i] * 0.3 + 205 * 0.7) * g;
+      const gg = (aimg.data[i + 1] * 0.3 + 150 * 0.7) * g;
+      const b = (aimg.data[i + 2] * 0.3 + 92 * 0.7) * g;
+      eimg.data[i] = Math.min(255, r * m);
+      eimg.data[i + 1] = Math.min(255, gg * m);
+      eimg.data[i + 2] = Math.min(255, b * m);
+      eimg.data[i + 3] = 255;
+    }
+    ectx.putImageData(eimg, 0, 0);
+    const maxAniso = renderer2 && renderer2.capabilities ? Math.min(8, renderer2.capabilities.getMaxAnisotropy()) : 1;
+    const albedo = new CanvasTexture(albedoCanvas);
+    albedo.colorSpace = SRGBColorSpace;
+    albedo.wrapS = albedo.wrapT = RepeatWrapping;
+    albedo.repeat.set(8, 8);
+    albedo.anisotropy = maxAniso;
+    albedo.needsUpdate = true;
+    const normal = new CanvasTexture(normalCanvas);
+    normal.colorSpace = NoColorSpace;
+    normal.wrapS = normal.wrapT = RepeatWrapping;
+    normal.repeat.set(8, 8);
+    normal.anisotropy = maxAniso;
+    normal.needsUpdate = true;
+    const emissive = new CanvasTexture(emissiveCanvas);
+    emissive.colorSpace = SRGBColorSpace;
+    emissive.flipY = false;
+    emissive.wrapS = emissive.wrapT = ClampToEdgeWrapping;
+    emissive.repeat.set(1, 1);
+    emissive.anisotropy = maxAniso;
+    emissive.needsUpdate = true;
+    return { albedo, normal, emissive };
+  }
+  var heightGrid = null;
+  function gridHeightAt(x, z) {
+    if (!heightGrid)
+      return finalHeight(x, z);
+    const gx = clamp01((x + HALF) / SIZE) * SEGMENTS;
+    const gz = clamp01((z + HALF) / SIZE) * SEGMENTS;
+    const ix = Math.min(SEGMENTS - 1, Math.floor(gx));
+    const iz = Math.min(SEGMENTS - 1, Math.floor(gz));
+    const fx = gx - ix;
+    const fz = gz - iz;
+    const n = SEGMENTS + 1;
+    const h00 = heightGrid[iz * n + ix];
+    const h10 = heightGrid[iz * n + ix + 1];
+    const h01 = heightGrid[(iz + 1) * n + ix];
+    const h11 = heightGrid[(iz + 1) * n + ix + 1];
+    return mix(mix(h00, h10, fx), mix(h01, h11, fx), fz);
+  }
+  function heightAt(x, z) {
+    return gridHeightAt(x, z);
+  }
+  function buildTerrain(scene2, renderer2) {
+    const n = SEGMENTS + 1;
+    const count = n * n;
+    heightGrid = new Float32Array(count);
+    const positions = new Float32Array(count * 3);
+    const uvs = new Float32Array(count * 2);
+    for (let iz = 0; iz < n; iz++) {
+      const z = -HALF + iz / SEGMENTS * SIZE;
+      for (let ix = 0; ix < n; ix++) {
+        const x = -HALF + ix / SEGMENTS * SIZE;
+        const h = finalHeight(x, z);
+        const i = iz * n + ix;
+        heightGrid[i] = h;
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = h;
+        positions[i * 3 + 2] = z;
+        uvs[i * 2] = ix / SEGMENTS;
+        uvs[i * 2 + 1] = iz / SEGMENTS;
+      }
+    }
+    const indices = new Uint32Array(SEGMENTS * SEGMENTS * 6);
+    let p = 0;
+    for (let iz = 0; iz < SEGMENTS; iz++) {
+      for (let ix = 0; ix < SEGMENTS; ix++) {
+        const a = iz * n + ix;
+        const b = a + 1;
+        const c2 = a + n;
+        const d = c2 + 1;
+        indices[p++] = a;
+        indices[p++] = c2;
+        indices[p++] = b;
+        indices[p++] = b;
+        indices[p++] = c2;
+        indices[p++] = d;
+      }
+    }
+    const geo = new BufferGeometry();
+    geo.setAttribute("position", new BufferAttribute(positions, 3));
+    geo.setAttribute("uv", new BufferAttribute(uvs, 2));
+    geo.setIndex(new BufferAttribute(indices, 1));
+    geo.computeVertexNormals();
+    const colors = new Float32Array(count * 3);
+    const cSoil = new Color(12034436);
+    const cMoss = new Color(10268546);
+    const cLeaf = new Color(11111016);
+    const cPath = new Color(13674615);
+    const c = new Color();
+    const normals = geo.attributes.normal;
+    for (let i = 0; i < count; i++) {
+      const x = positions[i * 3];
+      const z = positions[i * 3 + 2];
+      const broad = fbm(x * 0.055 + 4.1, z * 0.055 - 2.8, 3, 451);
+      const patch = fbm(x * 0.14 - 1.7, z * 0.14 + 6.3, 3, 619);
+      c.copy(cSoil).lerp(cMoss, smooth(clamp01((broad - 0.28) / 0.46)));
+      c.lerp(cLeaf, 0.28 * smooth(clamp01((patch - 0.5) / 0.45)));
+      const near = nearestPath(x, z, 4.5);
+      let pathMask = near ? 1 - smooth(clamp01((near.dist - 1.15) / 1.15)) : 0;
+      const node = nearestDecision(x, z, 5);
+      if (node) {
+        pathMask = Math.max(
+          pathMask,
+          1 - smooth(clamp01((node.dist - 2.2) / 1))
+        );
+      }
+      c.lerp(cPath, pathMask * 0.85);
+      const ny = normals.getY(i);
+      const slope = 0.58 + 0.42 * clamp01((ny - 0.5) / 0.5);
+      c.multiplyScalar(slope);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute("color", new BufferAttribute(colors, 3));
+    const textures = createGroundTextures(renderer2);
+    const material = new MeshStandardMaterial({
+      map: textures.albedo,
+      normalMap: textures.normal,
+      normalScale: new Vector2(0.14, 0.14),
+      emissive: new Color(16777215),
+      emissiveMap: textures.emissive,
+      emissiveIntensity: 0.65,
+      vertexColors: true,
+      roughness: 0.95,
+      metalness: 0,
+      color: 16777215
+    });
+    const mesh = new Mesh(geo, material);
+    mesh.name = "Terrain";
+    mesh.receiveShadow = true;
+    mesh.castShadow = false;
+    scene2.add(mesh);
+    return mesh;
+  }
+
   // js/environment.js
   var MODEL_DIR = "models/";
   var SECTORS = 8;
@@ -29064,6 +30131,27 @@
       stats.variants++;
       const solidRadius = collisionRadius(prepared.geometry, kind);
       const bvh = kind === "pebble" ? null : new MeshBVH(prepared.geometry);
+      const kept = [];
+      for (const p of list) {
+        const [x, z, , scale] = p;
+        if (name === "Tree_On_Rock") {
+          kept.push(p);
+          continue;
+        }
+        const near = nearestPath(x, z, 14);
+        if (near) {
+          if (kind === "pebble") {
+            if (near.dist < 1.2)
+              continue;
+          } else if (near.dist < solidRadius * scale + PATH_HALF_WIDTH + 0.5) {
+            continue;
+          }
+        }
+        kept.push(p);
+      }
+      const extras = PATH_EXTRAS[name] || [];
+      for (const e of extras)
+        kept.push([e.x, e.z, e.rot, e.scale]);
       if (!sharedMaterial) {
         const src = prepared.material;
         const map = src && src.map ? src.map : null;
@@ -29081,7 +30169,7 @@
         });
       }
       const buckets = Array.from({ length: SECTORS }, () => []);
-      for (const p of list) {
+      for (const p of kept) {
         buckets[sectorOf(p[0], p[1])].push(p);
       }
       for (let s = 0; s < SECTORS; s++) {
@@ -29095,7 +30183,8 @@
         inst.instanceMatrix.setUsage(StaticDrawUsage);
         for (let i = 0; i < bucket.length; i++) {
           const [x, z, rot, scale] = bucket[i];
-          dummy.position.set(x, 0, z);
+          const sink = name === "Tree_On_Rock" ? 0 : kind === "pebble" ? 0.03 : kind === "rock" ? 0.22 : 0.18;
+          dummy.position.set(x, heightAt(x, z) - sink, z);
           dummy.rotation.set(0, rot, 0);
           dummy.scale.setScalar(scale);
           dummy.updateMatrix();
@@ -29501,18 +30590,18 @@
   var END = 5.85;
   var CAMERA_RETURN_START = 2.38;
   var CAMERA_RETURN_END = 3.98;
-  var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+  var clamp012 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
   var lerp2 = (a, b, t) => a + (b - a) * t;
-  var smooth = (t) => {
-    t = clamp01(t);
+  var smooth2 = (t) => {
+    t = clamp012(t);
     return t * t * (3 - 2 * t);
   };
   var smoother = (t) => {
-    t = clamp01(t);
+    t = clamp012(t);
     return t * t * t * (t * (t * 6 - 15) + 10);
   };
   var easeIn = (t) => {
-    t = clamp01(t);
+    t = clamp012(t);
     return t * t * t;
   };
   function bezier3(a, b, c, d, t, out) {
@@ -30075,7 +31164,7 @@
           LIGHT_ROT[2] + 0.1 * u
         );
       } else if (time < DROP_END) {
-        const u = clamp01((time - WITHDRAW_END) / (DROP_END - WITHDRAW_END));
+        const u = clamp012((time - WITHDRAW_END) / (DROP_END - WITHDRAW_END));
         const e = u * u * (1.1 + 0.9 * u);
         left.position.copy(lightPos);
         left.position.x += -0.1 - 0.78 * e;
@@ -30098,7 +31187,7 @@
           handLight.position.copy(tip);
           handLight.position.y += 0.04;
           handLight.intensity = 2.4 + 0.6 * Math.sin(time * 9);
-          spot.intensity = 16 * smooth((time - IGNITE_AT) / 1.1);
+          spot.intensity = 16 * smooth2((time - IGNITE_AT) / 1.1);
         } else if (time < TRANSFER_END) {
           const e = smoother((time - CARRY_END) / (TRANSFER_END - CARRY_END));
           const x = lerp2(tip.x, wickNow.x, e);
@@ -30177,6 +31266,7 @@
   }
 
   // js/main.js
+  var EYE_HEIGHT = 1.6;
   var state = {
     playing: false,
     gameOver: false,
@@ -30198,7 +31288,6 @@
   };
   var UI = {
     instructions: document.getElementById("instructions"),
-    crosshair: document.getElementById("crosshair"),
     message: document.getElementById("message"),
     overlay: document.getElementById("overlay"),
     startBtn: document.getElementById("start-btn")
@@ -30246,7 +31335,7 @@
       0.1,
       1e3
     );
-    camera.position.set(0, 1.6, 0);
+    camera.position.set(0, EYE_HEIGHT, 0);
     camera.rotation.order = "YXZ";
     renderer = new WebGLRenderer({
       canvas: document.getElementById("game-canvas"),
@@ -30278,7 +31367,8 @@
     camera.add(handFlame);
     flame = createFlame(camera);
     flame.mesh.layers.set(1);
-    buildGround();
+    ground = buildTerrain(scene, renderer);
+    camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     buildHouse();
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -30371,7 +31461,6 @@
   }
   function onIntroDone() {
     state.cinematic = false;
-    UI.crosshair.style.display = "block";
     if (document.pointerLockElement === document.body) {
       UI.instructions.style.display = "none";
     } else {
@@ -30410,24 +31499,14 @@
     if (intro) {
       state.cinematic = true;
       UI.instructions.style.display = "none";
-      UI.crosshair.style.display = "none";
       intro.start();
     } else {
       UI.instructions.style.display = "block";
-      UI.crosshair.style.display = "block";
     }
-  }
-  function buildGround() {
-    const geo = new PlaneGeometry(220, 220);
-    const mat = new MeshStandardMaterial({ color: 1186578, roughness: 1 });
-    ground = new Mesh(geo, mat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
   }
   function buildHouse() {
     house = new Group();
-    house.position.set(25, 0, 25);
+    house.position.set(25, heightAt(25, 25), 25);
     house.rotation.y = -Math.PI * 0.75;
     const wallMat = new MeshStandardMaterial({ color: 2761250, roughness: 0.8 });
     const roofMat = new MeshStandardMaterial({ color: 1314832 });
@@ -30498,14 +31577,12 @@
       fog: scene.fog,
       clearColor: renderer.getClearColor(new Color()),
       clearAlpha: renderer.getClearAlpha(),
-      groundColor: ground.material.color.clone(),
       lightIntensity: light.intensity,
       lightVisible: light.visible,
       lightCastShadow: light.castShadow
     };
     scene.fog = null;
     renderer.setClearColor(9414340, 1);
-    ground.material.color.set(3756602);
     light.visible = false;
     const sun = new DirectionalLight(16773853, 5);
     sun.position.set(-30, 45, 20);
@@ -30530,7 +31607,6 @@
     if (spectatorSaved) {
       scene.fog = spectatorSaved.fog;
       renderer.setClearColor(spectatorSaved.clearColor, spectatorSaved.clearAlpha);
-      ground.material.color.copy(spectatorSaved.groundColor);
       light.visible = spectatorSaved.lightVisible;
       light.intensity = spectatorSaved.lightIntensity;
       light.castShadow = spectatorSaved.lightCastShadow;
@@ -30562,15 +31638,12 @@
   function onPointerLockChange() {
     const locked = document.pointerLockElement === document.body;
     if (state.cinematic) {
-      UI.crosshair.style.display = "none";
       UI.instructions.style.display = "none";
       return;
     }
     if (locked) {
       UI.instructions.style.display = "none";
-      UI.crosshair.style.display = "block";
     } else {
-      UI.crosshair.style.display = "none";
       if (state.playing && !state.gameOver && !state.won) {
         UI.instructions.textContent = state.spectator ? "Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit" : "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
         UI.instructions.style.display = "block";
@@ -30611,8 +31684,9 @@
         if (dx * dx + dz * dz > reach * reach)
           continue;
         const radiusLocal = radiusWorld / c.scale;
+        const feetY = camera.position.y - EYE_HEIGHT;
         for (let h = 0; h < COLLISION_HEIGHTS.length; h++) {
-          const y = COLLISION_HEIGHTS[h];
+          const y = feetY + COLLISION_HEIGHTS[h];
           _localSphere.set(camera.position.x, y, camera.position.z).applyMatrix4(c.inverse);
           const hit = c.bvh.closestPointToPoint(
             _localSphere,
@@ -30667,7 +31741,9 @@
     if (move.lengthSq() > 0) {
       move.normalize();
       camera.position.addScaledVector(move, speed);
+      camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
       resolveCollisions();
+      camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     }
     if (state.keys["KeyE"]) {
       delete state.keys["KeyE"];
@@ -30868,6 +31944,8 @@
     window.__DIYO_DEBUG.flame = flame;
     window.__DIYO_DEBUG.handFill = handFill;
     window.__DIYO_DEBUG.toggleSpectator = toggleSpectator;
+    window.__DIYO_DEBUG.terrainHeight = heightAt;
+    window.__DIYO_DEBUG.path = pathSummary();
     window.__DIYO_READY = true;
   } catch (err) {
     console.error("Diyo failed to start:", err);

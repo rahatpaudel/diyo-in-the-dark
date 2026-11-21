@@ -3,10 +3,14 @@ import { getTriangleHitPointInfo } from './vendor/three-mesh-bvh.module.js';
 import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
 import { loadHands, createIntro } from './intro.js';
+import { buildTerrain, heightAt } from './terrain.js';
+import { pathSummary } from './path.js';
 
 /* ------------------------------------------------------------------ */
 /*  Game state                                                        */
 /* ------------------------------------------------------------------ */
+const EYE_HEIGHT = 1.6;
+
 const state = {
   playing: false,
   gameOver: false,
@@ -38,7 +42,6 @@ const state = {
 /* ------------------------------------------------------------------ */
 const UI = {
   instructions: document.getElementById('instructions'),
-  crosshair: document.getElementById('crosshair'),
   message: document.getElementById('message'),
   overlay: document.getElementById('overlay'),
   startBtn: document.getElementById('start-btn')
@@ -104,7 +107,7 @@ function init() {
     0.1,
     1000
   );
-  camera.position.set(0, 1.6, 0);
+  camera.position.set(0, EYE_HEIGHT, 0);
   // YXZ prevents the roll/tilt artifact when looking around (FPS order:
   // yaw around Y first, then pitch around X). With the default 'XYZ',
   // moving the mouse up/down can visually rotate/tilt the view.
@@ -167,7 +170,9 @@ function init() {
   flame.mesh.layers.set(1);
 
   // World
-  buildGround();
+  ground = buildTerrain(scene, renderer);
+  camera.position.y =
+    heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
   buildHouse();
 
   // Input
@@ -302,7 +307,6 @@ function setView(yaw, pitch) {
 
 function onIntroDone() {
   state.cinematic = false;
-  UI.crosshair.style.display = 'block';
   if (document.pointerLockElement === document.body) {
     UI.instructions.style.display = 'none';
   } else {
@@ -355,29 +359,18 @@ function startGame() {
     // the shot until it hands over.
     state.cinematic = true;
     UI.instructions.style.display = 'none';
-    UI.crosshair.style.display = 'none';
     intro.start();
   } else {
     UI.instructions.style.display = 'block';
-    UI.crosshair.style.display = 'block';
   }
 }
 
 /* ------------------------------------------------------------------ */
 /*  World building                                                    */
 /* ------------------------------------------------------------------ */
-function buildGround() {
-  const geo = new THREE.PlaneGeometry(220, 220);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x121b12, roughness: 1 });
-  ground = new THREE.Mesh(geo, mat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
-}
-
 function buildHouse() {
   house = new THREE.Group();
-  house.position.set(25, 0, 25);
+  house.position.set(25, heightAt(25, 25), 25);
   // Turn the facade (door + windows) toward the spawn, so the house greets
   // the player instead of showing them its back wall.
   house.rotation.y = -Math.PI * 0.75;
@@ -488,7 +481,6 @@ function enterSpectator() {
     fog: scene.fog,
     clearColor: renderer.getClearColor(new THREE.Color()),
     clearAlpha: renderer.getClearAlpha(),
-    groundColor: ground.material.color.clone(),
     lightIntensity: light.intensity,
     lightVisible: light.visible,
     lightCastShadow: light.castShadow
@@ -498,7 +490,6 @@ function enterSpectator() {
   // shadowless light from every direction instead of the diyo's cramped pool.
   scene.fog = null;
   renderer.setClearColor(0x8fa6c4, 1);
-  ground.material.color.set(0x39523a);
   light.visible = false;
 
   const sun = new THREE.DirectionalLight(0xfff2dd, 5);
@@ -527,7 +518,6 @@ function exitSpectator() {
   if (spectatorSaved) {
     scene.fog = spectatorSaved.fog;
     renderer.setClearColor(spectatorSaved.clearColor, spectatorSaved.clearAlpha);
-    ground.material.color.copy(spectatorSaved.groundColor);
     light.visible = spectatorSaved.lightVisible;
     light.intensity = spectatorSaved.lightIntensity;
     light.castShadow = spectatorSaved.lightCastShadow;
@@ -577,19 +567,16 @@ function onClick() {
 function onPointerLockChange() {
   const locked = document.pointerLockElement === document.body;
 
-  // During the ceremony neither the crosshair nor the instructions belong on
-  // screen, even if pointer lock is acquired straight from the start click.
+  // During the ceremony the instructions stay off screen, even if pointer
+  // lock is acquired straight from the start click.
   if (state.cinematic) {
-    UI.crosshair.style.display = 'none';
     UI.instructions.style.display = 'none';
     return;
   }
 
   if (locked) {
     UI.instructions.style.display = 'none';
-    UI.crosshair.style.display = 'block';
   } else {
-    UI.crosshair.style.display = 'none';
     if (state.playing && !state.gameOver && !state.won) {
       UI.instructions.textContent = state.spectator
         ? 'Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit'
@@ -643,8 +630,9 @@ function resolveCollisions() {
       if (dx * dx + dz * dz > reach * reach) continue;
 
       const radiusLocal = radiusWorld / c.scale;
+      const feetY = camera.position.y - EYE_HEIGHT;
       for (let h = 0; h < COLLISION_HEIGHTS.length; h++) {
-        const y = COLLISION_HEIGHTS[h];
+        const y = feetY + COLLISION_HEIGHTS[h];
         _localSphere
           .set(camera.position.x, y, camera.position.z)
           .applyMatrix4(c.inverse);
@@ -712,7 +700,11 @@ function updatePlayer(dt) {
   if (move.lengthSq() > 0) {
     move.normalize();
     camera.position.addScaledVector(move, speed);
+    camera.position.y =
+      heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     resolveCollisions();
+    camera.position.y =
+      heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
   }
 
   // Consume interact key
@@ -994,6 +986,8 @@ try {
   window.__DIYO_DEBUG.flame = flame;
   window.__DIYO_DEBUG.handFill = handFill;
   window.__DIYO_DEBUG.toggleSpectator = toggleSpectator;
+  window.__DIYO_DEBUG.terrainHeight = heightAt;
+  window.__DIYO_DEBUG.path = pathSummary();
   window.__DIYO_READY = true;
 } catch (err) {
   console.error('Diyo failed to start:', err);

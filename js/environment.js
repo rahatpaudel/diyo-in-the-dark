@@ -16,6 +16,8 @@ import * as THREE from './vendor/three.module.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { MeshBVH } from './vendor/three-mesh-bvh.module.js';
 import { FOREST } from './forest-data.js';
+import { heightAt } from './terrain.js';
+import { nearestPath, PATH_EXTRAS, PATH_HALF_WIDTH } from './path.js';
 
 const MODEL_DIR = 'models/';
 const SECTORS = 8;
@@ -367,6 +369,31 @@ function build(scene, loaded, options) {
     // Build the triangle BVH once per model and share it across instances.
     const bvh = kind === 'pebble' ? null : new MeshBVH(prepared.geometry);
 
+    // Clear the generated path. The lone strike rock is exempt because the
+    // opening ceremony depends on its exact placement.
+    const kept = [];
+    for (const p of list) {
+      const [x, z, , scale] = p;
+      if (name === 'Tree_On_Rock') {
+        kept.push(p);
+        continue;
+      }
+      const near = nearestPath(x, z, 14);
+      if (near) {
+        if (kind === 'pebble') {
+          if (near.dist < 1.2) continue;
+        } else if (near.dist < solidRadius * scale + PATH_HALF_WIDTH + 0.5) {
+          continue;
+        }
+      }
+      kept.push(p);
+    }
+
+    // Add the path-lining trees and the deliberate dead-end blockers. They
+    // are placed after the clearance pass so they are never filtered out.
+    const extras = PATH_EXTRAS[name] || [];
+    for (const e of extras) kept.push([e.x, e.z, e.rot, e.scale]);
+
     if (!sharedMaterial) {
       const src = prepared.material;
       const map = src && src.map ? src.map : null;
@@ -387,7 +414,7 @@ function build(scene, loaded, options) {
     // Bucket the fixed layout by sector so culling can throw away most of
     // the forest while the player faces one way.
     const buckets = Array.from({ length: SECTORS }, () => []);
-    for (const p of list) {
+    for (const p of kept) {
       buckets[sectorOf(p[0], p[1])].push(p);
     }
 
@@ -403,7 +430,15 @@ function build(scene, loaded, options) {
 
       for (let i = 0; i < bucket.length; i++) {
         const [x, z, rot, scale] = bucket[i];
-        dummy.position.set(x, 0, z);
+        const sink =
+          name === 'Tree_On_Rock'
+            ? 0
+            : kind === 'pebble'
+              ? 0.03
+              : kind === 'rock'
+                ? 0.22
+                : 0.18;
+        dummy.position.set(x, heightAt(x, z) - sink, z);
         dummy.rotation.set(0, rot, 0);
         dummy.scale.setScalar(scale);
         dummy.updateMatrix();
