@@ -26618,11 +26618,13 @@
   var HOUSE_POINT = { x: 0, z: -168 };
   var RIDDLE_SITE = {
     approach: { x: 1.5, z: -24 },
-    sign: { x: 4.9, z: -31.5, radius: 2.6 },
+    sign: { x: 3.4, z: -28, radius: 1.15, footprint: 0.85 },
     stones: [
-      { icon: "dog", branch: "q1-correct", x: -2.3, z: -32.2, radius: 0.9 },
-      { icon: "horse", branch: "q1-decoy", x: 13.9, z: -32.4, radius: 0.9 }
-    ]
+      { icon: "dog", branch: "q1-correct", x: -1.2, z: -26.1, radius: 0.8, footprint: 0.82 },
+      { icon: "horse", branch: "q1-decoy", x: 6.5, z: -24.6, radius: 0.8, footprint: 0.82 }
+    ],
+    // The old sign stood here; a tree takes its place.
+    tree: { x: 4.9, z: -31.5, radius: 1 }
   };
   var SAMPLE_STEP = 0.6;
   var CELL = 4;
@@ -26867,7 +26869,7 @@
   var PATH_TREES = TREES.slice(0, 6);
   var EDGE_TREES = [TREES[0], TREES[2], TREES[4]];
   var RADIUS_BY_NAME = Object.fromEntries(TREES.map((t) => [t.name, t.radius]));
-  var RIDDLE_SITES = [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones];
+  var RIDDLE_SITES = [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones, RIDDLE_SITE.tree];
   function treeClearOfPaths(name, x, z, scale) {
     const radius = (RADIUS_BY_NAME[name] || 0) * scale;
     for (const site of RIDDLE_SITES) {
@@ -26949,6 +26951,13 @@
       }
     }
   }
+  addExtra(
+    "Tree_Large_1",
+    RIDDLE_SITE.tree.x,
+    RIDDLE_SITE.tree.z,
+    hash(RIDDLE_SITE.tree.x, RIDDLE_SITE.tree.z, 733) * Math.PI * 2,
+    0.95
+  );
   for (let gx = -34; gx <= 34; gx += 3.8) {
     for (let gz = 2; gz <= 40; gz += 3.8) {
       const r1 = hash(Math.round(gx * 10), Math.round(gz * 10), 211);
@@ -28922,9 +28931,9 @@
 
   // js/riddle.js
   var ICON_SIZE = 512;
-  var SIGN_W = 3.4;
-  var SIGN_H = 2;
-  var SIGN_TEX_W = 2048;
+  var SIGN_W = 1.5;
+  var SIGN_H = 0.95;
+  var SIGN_TEX_W = 1536;
   var SIGN_TEX_H = Math.round(SIGN_TEX_W * SIGN_H / SIGN_W);
   var STONE_TEX_W = 768;
   var STONE_TEX_H = 900;
@@ -29058,13 +29067,13 @@
     const W = canvas.width;
     const H = canvas.height;
     const rand = deterministicRandom(24301);
-    const planks = 5;
+    const planks = 3;
     const plankW = W / planks;
     for (let i = 0; i < planks; i++) {
       ctx.fillStyle = i % 2 === 0 ? "#83552d" : "#79502a";
       ctx.fillRect(i * plankW, 0, plankW + 1, H);
     }
-    for (let i = 0; i < 320; i++) {
+    for (let i = 0; i < 190; i++) {
       const x = rand() * W;
       const y = rand() * H;
       const len = 60 + rand() * 420;
@@ -29086,19 +29095,19 @@
     for (let i = 1; i < planks; i++) {
       carveLine(ctx, i * plankW, 0, i * plankW, H, 9);
     }
-    const pad = 52;
+    const pad = 30;
     ctx.strokeStyle = "rgba(30,17,7,0.95)";
-    ctx.lineWidth = 12;
+    ctx.lineWidth = 8;
     ctx.strokeRect(pad, pad, W - pad * 2, H - pad * 2);
     ctx.strokeStyle = "rgba(232,183,122,0.4)";
-    ctx.lineWidth = 4;
-    ctx.strokeRect(pad + 9, pad + 9, W - (pad + 9) * 2, H - (pad + 9) * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeRect(pad + 6, pad + 6, W - (pad + 6) * 2, H - (pad + 6) * 2);
     const colX = [W / 6, W / 2, W * 5 / 6];
-    const rowLineY = Math.round(H * 0.355);
-    carveLine(ctx, pad, rowLineY, W - pad, rowLineY, 10);
-    carveLine(ctx, W / 3, pad, W / 3, H - pad, 10);
-    carveLine(ctx, W * 2 / 3, pad, W * 2 / 3, H - pad, 10);
-    const numeralFont = '700 292px "Riddle Numerals", "Noto Sans Devanagari", serif';
+    const rowLineY = Math.round(H * 0.36);
+    carveLine(ctx, pad, rowLineY, W - pad, rowLineY, 7);
+    carveLine(ctx, W / 3, pad, W / 3, H - pad, 7);
+    carveLine(ctx, W * 2 / 3, pad, W * 2 / 3, H - pad, 7);
+    const numeralFont = '700 196px "Riddle Numerals", "Noto Sans Devanagari", serif';
     const numerals = ["\u0967", "\u0968", "\u0969"];
     for (let i = 0; i < 3; i++) {
       drawPaintedText(
@@ -29112,11 +29121,11 @@
       );
     }
     const iconCy = Math.round(H * 0.69);
-    const iconBox = Math.round(H * 0.44);
-    drawCarvedGlyph(ctx, glyphs.crow, colX[0], iconCy, iconBox, SIGN_CARVE, 8);
-    drawCarvedGlyph(ctx, glyphs.question, colX[1], iconCy, iconBox, SIGN_CARVE, 8);
-    drawCarvedGlyph(ctx, glyphs.cow, colX[2], iconCy, iconBox, SIGN_CARVE, 8);
-    for (let i = 0; i < 2400; i++) {
+    const iconBox = Math.round(H * 0.43);
+    drawCarvedGlyph(ctx, glyphs.crow, colX[0], iconCy, iconBox, SIGN_CARVE, 5);
+    drawCarvedGlyph(ctx, glyphs.question, colX[1], iconCy, iconBox, SIGN_CARVE, 5);
+    drawCarvedGlyph(ctx, glyphs.cow, colX[2], iconCy, iconBox, SIGN_CARVE, 5);
+    for (let i = 0; i < 1400; i++) {
       ctx.fillStyle = rand() > 0.5 ? "rgba(255,225,180,0.03)" : "rgba(20,10,4,0.05)";
       ctx.fillRect(rand() * W, rand() * H, 1 + rand() * 2, 1 + rand() * 2);
     }
@@ -29164,7 +29173,7 @@
       roughness: 0.92,
       metalness: 0
     });
-    const frame = new MeshStandardMaterial({
+    const plank = new MeshStandardMaterial({
       color: 4927259,
       roughness: 0.9,
       metalness: 0
@@ -29175,32 +29184,25 @@
       metalness: 0,
       flatShading: true
     });
-    const sill = new Mesh(new BoxGeometry(3.8, 0.34, 0.92), stone);
-    sill.position.set(0, 0.17, 0);
-    sill.castShadow = true;
-    sill.receiveShadow = true;
-    group.add(sill);
-    const postH = 3.7;
-    for (const x of [-1.5, 1.5]) {
-      const post = new Mesh(new BoxGeometry(0.22, postH, 0.22), wood);
-      post.position.set(x, postH / 2, 0);
-      post.castShadow = true;
-      post.receiveShadow = true;
-      group.add(post);
-      const foot = new Mesh(new BoxGeometry(0.5, 0.32, 0.56), stone);
-      foot.position.set(x, 0.16, 0);
-      foot.castShadow = true;
-      foot.receiveShadow = true;
-      group.add(foot);
-    }
-    const board = new Mesh(
-      new BoxGeometry(SIGN_W + 0.3, SIGN_H + 0.26, 0.16),
-      frame
+    const postH = 2.45;
+    const post = new Mesh(new BoxGeometry(0.16, postH, 0.16), wood);
+    post.position.set(0, postH / 2, -0.16);
+    post.castShadow = true;
+    post.receiveShadow = true;
+    group.add(post);
+    const foot = new Mesh(new BoxGeometry(0.52, 0.3, 0.6), stone);
+    foot.position.set(0, 0.15, -0.14);
+    foot.castShadow = true;
+    foot.receiveShadow = true;
+    group.add(foot);
+    const backing = new Mesh(
+      new BoxGeometry(SIGN_W + 0.1, SIGN_H + 0.1, 0.09),
+      plank
     );
-    board.position.set(0, 2.46, 0);
-    board.castShadow = true;
-    board.receiveShadow = true;
-    group.add(board);
+    backing.position.set(0, 1.85, 0);
+    backing.castShadow = true;
+    backing.receiveShadow = true;
+    group.add(backing);
     const faceTexture = canvasTexture(
       makeSignTexture(glyphs),
       renderer2,
@@ -29218,13 +29220,8 @@
       new PlaneGeometry(SIGN_W, SIGN_H),
       faceMaterial
     );
-    face.position.set(0, 2.46, 0.085);
+    face.position.set(0, 1.85, 0.051);
     group.add(face);
-    const cap = new Mesh(new BoxGeometry(3.95, 0.16, 0.46), wood);
-    cap.position.set(0, 3.7, 0);
-    cap.castShadow = true;
-    cap.receiveShadow = true;
-    group.add(cap);
     return group;
   }
   function buildStone(glyph, renderer2) {
@@ -29298,7 +29295,7 @@
     return group;
   }
   async function buildRiddleSign(scene2, renderer2) {
-    await document.fonts.load('700 292px "Riddle Numerals"');
+    await document.fonts.load('700 196px "Riddle Numerals"');
     const [crow, cow, dog, horse] = await Promise.all([
       loadIcon("crow"),
       loadIcon("cow"),
@@ -29328,8 +29325,8 @@
     }
     if (typeof console !== "undefined") {
       for (const site of [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones]) {
-        const near = nearestPath(site.x, site.z, site.radius + PATH_HALF_WIDTH + 6);
-        if (near && near.dist < PATH_HALF_WIDTH + site.radius) {
+        const near = nearestPath(site.x, site.z, site.footprint + PATH_HALF_WIDTH + 6);
+        if (near && near.dist < PATH_HALF_WIDTH + site.footprint) {
           console.warn(
             "[riddle] prop at " + site.x + "," + site.z + " overlaps the trail"
           );

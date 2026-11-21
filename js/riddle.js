@@ -16,9 +16,9 @@ import {
 } from './path.js';
 
 const ICON_SIZE = 512;
-const SIGN_W = 3.4;
-const SIGN_H = 2.0;
-const SIGN_TEX_W = 2048;
+const SIGN_W = 1.5;
+const SIGN_H = 0.95;
+const SIGN_TEX_W = 1536;
 const SIGN_TEX_H = Math.round((SIGN_TEX_W * SIGN_H) / SIGN_W);
 const STONE_TEX_W = 768;
 const STONE_TEX_H = 900;
@@ -179,14 +179,14 @@ function makeSignTexture(glyphs) {
   const rand = deterministicRandom(0x5eed);
 
   // Weathered vertical planks.
-  const planks = 5;
+  const planks = 3;
   const plankW = W / planks;
   for (let i = 0; i < planks; i++) {
     ctx.fillStyle = i % 2 === 0 ? '#83552d' : '#79502a';
     ctx.fillRect(i * plankW, 0, plankW + 1, H);
   }
 
-  for (let i = 0; i < 320; i++) {
+  for (let i = 0; i < 190; i++) {
     const x = rand() * W;
     const y = rand() * H;
     const len = 60 + rand() * 420;
@@ -213,23 +213,23 @@ function makeSignTexture(glyphs) {
   }
 
   // Recessed border.
-  const pad = 52;
+  const pad = 30;
   ctx.strokeStyle = 'rgba(30,17,7,0.95)';
-  ctx.lineWidth = 12;
+  ctx.lineWidth = 8;
   ctx.strokeRect(pad, pad, W - pad * 2, H - pad * 2);
   ctx.strokeStyle = 'rgba(232,183,122,0.4)';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(pad + 9, pad + 9, W - (pad + 9) * 2, H - (pad + 9) * 2);
+  ctx.lineWidth = 3;
+  ctx.strokeRect(pad + 6, pad + 6, W - (pad + 6) * 2, H - (pad + 6) * 2);
 
   // Three columns: numerals above, symbols below.
   const colX = [W / 6, W / 2, (W * 5) / 6];
-  const rowLineY = Math.round(H * 0.355);
-  carveLine(ctx, pad, rowLineY, W - pad, rowLineY, 10);
-  carveLine(ctx, W / 3, pad, W / 3, H - pad, 10);
-  carveLine(ctx, (W * 2) / 3, pad, (W * 2) / 3, H - pad, 10);
+  const rowLineY = Math.round(H * 0.36);
+  carveLine(ctx, pad, rowLineY, W - pad, rowLineY, 7);
+  carveLine(ctx, W / 3, pad, W / 3, H - pad, 7);
+  carveLine(ctx, (W * 2) / 3, pad, (W * 2) / 3, H - pad, 7);
 
   const numeralFont =
-    '700 292px "Riddle Numerals", "Noto Sans Devanagari", serif';
+    '700 196px "Riddle Numerals", "Noto Sans Devanagari", serif';
   const numerals = ['१', '२', '३'];
   for (let i = 0; i < 3; i++) {
     drawPaintedText(
@@ -244,13 +244,13 @@ function makeSignTexture(glyphs) {
   }
 
   const iconCy = Math.round(H * 0.69);
-  const iconBox = Math.round(H * 0.44);
-  drawCarvedGlyph(ctx, glyphs.crow, colX[0], iconCy, iconBox, SIGN_CARVE, 8);
-  drawCarvedGlyph(ctx, glyphs.question, colX[1], iconCy, iconBox, SIGN_CARVE, 8);
-  drawCarvedGlyph(ctx, glyphs.cow, colX[2], iconCy, iconBox, SIGN_CARVE, 8);
+  const iconBox = Math.round(H * 0.43);
+  drawCarvedGlyph(ctx, glyphs.crow, colX[0], iconCy, iconBox, SIGN_CARVE, 5);
+  drawCarvedGlyph(ctx, glyphs.question, colX[1], iconCy, iconBox, SIGN_CARVE, 5);
+  drawCarvedGlyph(ctx, glyphs.cow, colX[2], iconCy, iconBox, SIGN_CARVE, 5);
 
   // A faint grit pass ties the carving into the wood.
-  for (let i = 0; i < 2400; i++) {
+  for (let i = 0; i < 1400; i++) {
     ctx.fillStyle =
       rand() > 0.5 ? 'rgba(255,225,180,0.03)' : 'rgba(20,10,4,0.05)';
     ctx.fillRect(rand() * W, rand() * H, 1 + rand() * 2, 1 + rand() * 2);
@@ -316,7 +316,7 @@ function buildSign(glyphs, renderer) {
     roughness: 0.92,
     metalness: 0
   });
-  const frame = new THREE.MeshStandardMaterial({
+  const plank = new THREE.MeshStandardMaterial({
     color: 0x4b2f1b,
     roughness: 0.9,
     metalness: 0
@@ -328,37 +328,28 @@ function buildSign(glyphs, renderer) {
     flatShading: true
   });
 
-  // A low stone sill bridges the ground under both posts, so the sign stays
-  // seated even where the forest floor slopes across its width.
-  const sill = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.34, 0.92), stone);
-  sill.position.set(0, 0.17, 0);
-  sill.castShadow = true;
-  sill.receiveShadow = true;
-  group.add(sill);
+  // A single post carries one small plank. No frame, no board, no sill.
+  const postH = 2.45;
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, postH, 0.16), wood);
+  post.position.set(0, postH / 2, -0.16);
+  post.castShadow = true;
+  post.receiveShadow = true;
+  group.add(post);
 
-  const postH = 3.7;
-  for (const x of [-1.5, 1.5]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, postH, 0.22), wood);
-    post.position.set(x, postH / 2, 0);
-    post.castShadow = true;
-    post.receiveShadow = true;
-    group.add(post);
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.6), stone);
+  foot.position.set(0, 0.15, -0.14);
+  foot.castShadow = true;
+  foot.receiveShadow = true;
+  group.add(foot);
 
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.32, 0.56), stone);
-    foot.position.set(x, 0.16, 0);
-    foot.castShadow = true;
-    foot.receiveShadow = true;
-    group.add(foot);
-  }
-
-  const board = new THREE.Mesh(
-    new THREE.BoxGeometry(SIGN_W + 0.3, SIGN_H + 0.26, 0.16),
-    frame
+  const backing = new THREE.Mesh(
+    new THREE.BoxGeometry(SIGN_W + 0.1, SIGN_H + 0.1, 0.09),
+    plank
   );
-  board.position.set(0, 2.46, 0);
-  board.castShadow = true;
-  board.receiveShadow = true;
-  group.add(board);
+  backing.position.set(0, 1.85, 0);
+  backing.castShadow = true;
+  backing.receiveShadow = true;
+  group.add(backing);
 
   const faceTexture = canvasTexture(
     makeSignTexture(glyphs),
@@ -377,14 +368,8 @@ function buildSign(glyphs, renderer) {
     new THREE.PlaneGeometry(SIGN_W, SIGN_H),
     faceMaterial
   );
-  face.position.set(0, 2.46, 0.085);
+  face.position.set(0, 1.85, 0.051);
   group.add(face);
-
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(3.95, 0.16, 0.46), wood);
-  cap.position.set(0, 3.7, 0);
-  cap.castShadow = true;
-  cap.receiveShadow = true;
-  group.add(cap);
 
   return group;
 }
@@ -467,7 +452,7 @@ function buildStone(glyph, renderer) {
 /*  Public builder                                                    */
 /* ------------------------------------------------------------------ */
 export async function buildRiddleSign(scene, renderer) {
-  await document.fonts.load('700 292px "Riddle Numerals"');
+  await document.fonts.load('700 196px "Riddle Numerals"');
 
   const [crow, cow, dog, horse] = await Promise.all([
     loadIcon('crow'),
@@ -504,8 +489,8 @@ export async function buildRiddleSign(scene, renderer) {
   if (typeof console !== 'undefined') {
     // A quiet guard against future path changes putting a prop on the trail.
     for (const site of [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones]) {
-      const near = nearestPath(site.x, site.z, site.radius + PATH_HALF_WIDTH + 6);
-      if (near && near.dist < PATH_HALF_WIDTH + site.radius) {
+      const near = nearestPath(site.x, site.z, site.footprint + PATH_HALF_WIDTH + 6);
+      if (near && near.dist < PATH_HALF_WIDTH + site.footprint) {
         console.warn(
           '[riddle] prop at ' + site.x + ',' + site.z + ' overlaps the trail'
         );

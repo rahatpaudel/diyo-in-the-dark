@@ -14,11 +14,13 @@ export const HOUSE_POINT = { x: 0, z: -168 };
 // clear, and riddle.js puts the sign and stones here.
 export const RIDDLE_SITE = {
   approach: { x: 1.5, z: -24 },
-  sign: { x: 4.9, z: -31.5, radius: 2.6 },
+  sign: { x: 3.4, z: -28.0, radius: 1.15, footprint: 0.85 },
   stones: [
-    { icon: 'dog', branch: 'q1-correct', x: -2.3, z: -32.2, radius: 0.9 },
-    { icon: 'horse', branch: 'q1-decoy', x: 13.9, z: -32.4, radius: 0.9 }
-  ]
+    { icon: 'dog', branch: 'q1-correct', x: -1.2, z: -26.1, radius: 0.8, footprint: 0.82 },
+    { icon: 'horse', branch: 'q1-decoy', x: 6.5, z: -24.6, radius: 0.8, footprint: 0.82 }
+  ],
+  // The old sign stood here; a tree takes its place.
+  tree: { x: 4.9, z: -31.5, radius: 1.0 }
 };
 
 const SAMPLE_STEP = 0.6;
@@ -298,7 +300,7 @@ const RADIUS_BY_NAME = Object.fromEntries(TREES.map((t) => [t.name, t.radius]));
 
 // No upright tree may stand on any branch. The clearance uses the tree's own
 // footprint so a wide canopy cannot hang over a neighbouring trail either.
-const RIDDLE_SITES = [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones];
+const RIDDLE_SITES = [RIDDLE_SITE.sign, ...RIDDLE_SITE.stones, RIDDLE_SITE.tree];
 
 function treeClearOfPaths(name, x, z, scale) {
   const radius = (RADIUS_BY_NAME[name] || 0) * scale;
@@ -386,6 +388,16 @@ for (const branch of PATH_BRANCHES) {
     }
   }
 }
+
+// The first sign used to stand farther down the fork. A single large tree now
+// fills that opening, so the junction still reads as deep forest.
+addExtra(
+  'Tree_Large_1',
+  RIDDLE_SITE.tree.x,
+  RIDDLE_SITE.tree.z,
+  hash(RIDDLE_SITE.tree.x, RIDDLE_SITE.tree.z, 733) * Math.PI * 2,
+  0.95
+);
 
 // Forest behind the spawn. Turning around should show deep woods, not the
 // edge of the terrain.
