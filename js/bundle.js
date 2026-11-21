@@ -28440,11 +28440,11 @@
 
   // js/audio.js
   var ROOT = "sounds/";
-  var FOREST_VOLUME = 0.3;
-  var FOREST_DUCKED = 0.09;
-  var WIND_VOLUME = 0.55;
+  var FOREST_VOLUME = 0.78;
+  var FOREST_DUCKED = 0.28;
+  var WIND_VOLUME = 0.88;
   var STEP_VOLUME = 0.24;
-  var WIN_VOLUME = 0.6;
+  var WIN_VOLUME = 0.9;
   function audioTrack(path, loop) {
     const audio2 = new Audio(ROOT + path);
     audio2.loop = !!loop;
@@ -28514,12 +28514,12 @@
     function playStrike() {
       if (!started)
         return;
-      play(strike, 0.5);
+      play(strike, 0.78);
     }
     function playStrikeLight() {
       if (!started)
         return;
-      play(strikeLight, 0.58);
+      play(strikeLight, 0.82);
     }
     function playWin() {
       if (!started)

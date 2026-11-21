@@ -8,11 +8,11 @@
  */
 const ROOT = 'sounds/';
 
-const FOREST_VOLUME = 0.3;
-const FOREST_DUCKED = 0.09;
-const WIND_VOLUME = 0.55;
+const FOREST_VOLUME = 0.78;
+const FOREST_DUCKED = 0.28;
+const WIND_VOLUME = 0.88;
 const STEP_VOLUME = 0.24;
-const WIN_VOLUME = 0.6;
+const WIN_VOLUME = 0.9;
 
 function audioTrack(path, loop) {
   const audio = new Audio(ROOT + path);
@@ -88,12 +88,12 @@ export function createAudio() {
 
   function playStrike() {
     if (!started) return;
-    play(strike, 0.5);
+    play(strike, 0.78);
   }
 
   function playStrikeLight() {
     if (!started) return;
-    play(strikeLight, 0.58);
+    play(strikeLight, 0.82);
   }
 
   function playWin() {
