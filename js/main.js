@@ -64,6 +64,7 @@ const _handWick = new THREE.Vector3();
 let handBaseReady = false;
 let handBobPhase = 0;
 let handIdleTime = 0;
+let handWalk = 0;
 let handSwayX = 0;
 let handSwayYaw = 0;
 let handSwayPitch = 0;
@@ -745,19 +746,27 @@ function updateHandBob(dt, motion) {
   const step = Math.min(dt || 0, 0.1);
   handIdleTime += step;
 
-  const planar = Math.hypot(motion.localX || 0, motion.localZ || 0);
-  const speed = Math.min(1, planar / Math.max(state.moveSpeed, 1e-3));
-  const gait = speed * speed;
+  // Drive the gait from the movement keys and smooth it, rather than from
+  // per-frame camera displacement. Fixed-timestep movement alternates between
+  // zero and several steps per frame, which made the raw speed (and the bob)
+  // jitter badly.
+  const moving =
+    state.keys['KeyW'] ||
+    state.keys['KeyS'] ||
+    state.keys['KeyA'] ||
+    state.keys['KeyD'];
+  handWalk += ((moving ? 1 : 0) - handWalk) * (1 - Math.exp(-9 * step));
+  const gait = handWalk * handWalk;
 
   // Two-step vertical cadence with a slower side-to-side sway.
-  handBobPhase += step * (6.0 + 6.0 * speed);
+  handBobPhase += step * (4.2 + 3.8 * handWalk);
   const bobY =
-    Math.sin(handBobPhase * 1.15) * 0.0035 * gait +
+    Math.sin(handBobPhase * 1.15) * 0.0032 * gait +
     Math.sin(handIdleTime * 1.25) * 0.00045;
   const bobX =
-    Math.cos(handBobPhase * 0.62) * 0.0022 * gait +
+    Math.cos(handBobPhase * 0.62) * 0.002 * gait +
     Math.sin(handIdleTime * 0.9 + 0.6) * 0.0003;
-  const bobRoll = Math.sin(handBobPhase * 0.9) * 0.004 * gait;
+  const bobRoll = Math.sin(handBobPhase * 0.9) * 0.0035 * gait;
 
   // The hand lags behind fast camera turns, then eases back when the turn
   // stops. Rates are per second so the feel is frame-rate independent.
