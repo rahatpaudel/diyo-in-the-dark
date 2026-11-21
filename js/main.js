@@ -2,6 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
 import { createWind } from './wind.js';
+import { createAudio } from './audio.js';
 import { loadHands, createIntro } from './intro.js';
 import { buildTerrain, heightAt } from './terrain.js';
 import { buildRiddleSign } from './riddle.js';
@@ -78,7 +79,7 @@ const UI = {
 /*  Three.js scene objects                                            */
 /* ------------------------------------------------------------------ */
 let scene, camera, renderer, clock;
-let light, house, flame, handFill, handFlame, wind;
+let light, house, flame, handFill, handFlame, wind, audio;
 let houseBulbs = [];
 let houseLights = [];
 let houseGlow = [];
@@ -197,6 +198,9 @@ function init() {
   // HUD layer: drawn after the world with a cleared depth buffer.
   flame.mesh.layers.set(1);
 
+  // Scene audio. The ambience only starts from the menu's click gesture.
+  audio = createAudio();
+
   // Wrong-branch wind. Inert until the player commits to a decoy.
   wind = createWind(scene);
 
@@ -287,7 +291,8 @@ function loadWorld() {
           hands,
           environment: env,
           setView,
-          onDone: onIntroDone
+          onDone: onIntroDone,
+          audio
         });
         if (window.__DIYO_DEBUG) window.__DIYO_DEBUG.intro = intro;
 
@@ -350,7 +355,7 @@ function onIntroDone() {
     UI.instructions.style.display = 'none';
   } else {
     UI.instructions.textContent =
-      'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
+      'Click to resume \u2022 WASD to move \u2022 Mouse to look';
     UI.instructions.style.display = 'block';
   }
 
@@ -376,6 +381,8 @@ function onIntroDone() {
 function startGame() {
   if (state.playing) return;
   state.playing = true;
+
+  if (audio) audio.start();
 
   // Let the menu dissolve instead of vanishing between frames.
   UI.overlay.classList.add('is-leaving');
@@ -743,7 +750,7 @@ function onPointerLockChange() {
     if (state.playing && !state.gameOver && !state.won) {
       UI.instructions.textContent = state.spectator
         ? 'Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit'
-        : 'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
+        : 'Click to resume \u2022 WASD to move \u2022 Mouse to look';
       UI.instructions.style.display = 'block';
     } else {
       UI.instructions.style.display = 'none';
@@ -844,6 +851,7 @@ function startStranded(node) {
   state.keys = {};
   UI.message.style.display = 'none';
   UI.instructions.style.display = 'none';
+  if (audio) audio.startWind();
 }
 
 function updateStranded(dt) {
@@ -922,6 +930,8 @@ function respawn() {
   _prevYaw = yaw;
   _prevPitch = 0;
 
+  if (audio) audio.stopWind();
+
   light.visible = true;
   light.intensity = 44;
   flame.setVisible(true);
@@ -940,7 +950,7 @@ function respawn() {
     console.warn('Pointer lock unavailable:', e);
   }
   UI.instructions.textContent =
-    'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
+    'Click to resume \u2022 WASD to move \u2022 Mouse to look';
   UI.instructions.style.display =
     document.pointerLockElement === document.body ? 'none' : 'block';
 }
@@ -964,6 +974,8 @@ function startEnding() {
     glow.mat.emissive.set(glow.color);
     glow.mat.emissiveIntensity = 0;
   }
+
+  if (audio) audio.playWin();
 }
 
 function updateEnding(dt) {
@@ -1187,6 +1199,18 @@ function animate() {
   const localZ = _velocity.dot(_axisZ);
   const yawDelta = state.yaw - _prevYaw;
   const pitchDelta = state.pitch - _prevPitch;
+
+  const walking =
+    state.playing &&
+    !state.cinematic &&
+    !state.gameOver &&
+    !state.won &&
+    !state.stranded &&
+    !state.ending &&
+    !state.spectator &&
+    _velocity.lengthSq() > 0.25;
+  if (audio) audio.update(delta, walking);
+
   flame.update(rawDelta, {
     localX,
     localY,

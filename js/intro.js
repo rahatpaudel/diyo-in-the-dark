@@ -337,7 +337,16 @@ export function loadHands() {
 /* ------------------------------------------------------------------ */
 /*  Intro                                                             */
 /* ------------------------------------------------------------------ */
-export function createIntro({ camera, flame, spot, hands, environment, setView, onDone }) {
+export function createIntro({
+  camera,
+  flame,
+  spot,
+  hands,
+  environment,
+  setView,
+  onDone,
+  audio
+}) {
   const { left, right } = hands;
 
   const matchTip = left.getObjectByName('match_tip');
@@ -399,6 +408,8 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
 
   let started = false;
   let finished = false;
+  let strikeSoundPlayed = false;
+  let strikeLightSoundPlayed = false;
   let time = 0;
   let lit = false;
   let flare = 1;
@@ -626,6 +637,18 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     if (!started || finished || paused) return;
     const d = Math.min(dt || 0, 0.1);
     time += d;
+
+    // The first scrape and the second, catching scrape. The second file also
+    // contains the ignition swell, so it starts with the scrape and carries
+    // through IGNITE_AT.
+    if (!strikeSoundPlayed && time >= CONTACT_AT) {
+      strikeSoundPlayed = true;
+      if (audio) audio.playStrike();
+    }
+    if (!strikeLightSoundPlayed && time >= SCRAPE2_START) {
+      strikeLightSoundPlayed = true;
+      if (audio) audio.playStrikeLight();
+    }
 
     // Timeline (seconds)
     //   0.00-1.25  camera turns to the rock while the hand rises in an arc

@@ -28438,6 +28438,147 @@
     };
   }
 
+  // js/audio.js
+  var ROOT = "sounds/";
+  var FOREST_VOLUME = 0.3;
+  var FOREST_DUCKED = 0.09;
+  var WIND_VOLUME = 0.55;
+  var STEP_VOLUME = 0.24;
+  var WIN_VOLUME = 0.6;
+  function audioTrack(path, loop) {
+    const audio2 = new Audio(ROOT + path);
+    audio2.loop = !!loop;
+    audio2.preload = "auto";
+    audio2.volume = 0;
+    return audio2;
+  }
+  function play(audio2, volume) {
+    try {
+      audio2.currentTime = 0;
+      audio2.volume = volume;
+      const promise = audio2.play();
+      if (promise && typeof promise.catch === "function") {
+        promise.catch(() => {
+        });
+      }
+    } catch (e) {
+    }
+  }
+  function createAudio() {
+    const forest = audioTrack("ambience/forest.ogg", true);
+    const wind2 = audioTrack("ambience/wind.ogg", true);
+    const win = audioTrack("win.wav", false);
+    const strike = audioTrack("effects/matchstick/strike.wav", false);
+    const strikeLight = audioTrack("effects/matchstick/strike_and_light.wav", false);
+    const footsteps = [];
+    for (let i = 1; i <= 8; i++) {
+      footsteps.push(audioTrack("effects/footsteps/" + i + ".wav", false));
+    }
+    let started = false;
+    let won = false;
+    let forestTarget = 0;
+    let windTarget = 0;
+    let stepTimer = 0;
+    function fade(current, target, dt, speed) {
+      return current + (target - current) * (1 - Math.exp(-dt * speed));
+    }
+    function start() {
+      if (started)
+        return;
+      started = true;
+      forestTarget = FOREST_VOLUME;
+      const promise = forest.play();
+      if (promise && typeof promise.catch === "function") {
+        promise.catch(() => {
+        });
+      }
+    }
+    function startWind() {
+      if (!started)
+        return;
+      forestTarget = FOREST_DUCKED;
+      windTarget = WIND_VOLUME;
+      if (wind2.paused) {
+        wind2.currentTime = 0;
+        const promise = wind2.play();
+        if (promise && typeof promise.catch === "function") {
+          promise.catch(() => {
+          });
+        }
+      }
+    }
+    function stopWind() {
+      windTarget = 0;
+      forestTarget = won ? FOREST_DUCKED : FOREST_VOLUME;
+    }
+    function playStrike() {
+      if (!started)
+        return;
+      play(strike, 0.5);
+    }
+    function playStrikeLight() {
+      if (!started)
+        return;
+      play(strikeLight, 0.58);
+    }
+    function playWin() {
+      if (!started)
+        return;
+      won = true;
+      forestTarget = FOREST_DUCKED;
+      windTarget = 0;
+      play(win, WIN_VOLUME);
+    }
+    function update(dt, walking) {
+      if (!started)
+        return;
+      forest.volume = fade(
+        forest.volume,
+        forestTarget,
+        dt,
+        forestTarget > forest.volume ? 0.8 : 2
+      );
+      wind2.volume = fade(
+        wind2.volume,
+        windTarget,
+        dt,
+        windTarget > wind2.volume ? 0.55 : 2.2
+      );
+      if (windTarget === 0 && wind2.volume < 0.01 && !wind2.paused) {
+        wind2.pause();
+      }
+      if (!walking) {
+        stepTimer = 0;
+        return;
+      }
+      stepTimer -= dt;
+      if (stepTimer > 0)
+        return;
+      const step = footsteps[Math.floor(Math.random() * footsteps.length)];
+      try {
+        step.currentTime = 0;
+        step.playbackRate = 0.92 + Math.random() * 0.16;
+        step.volume = STEP_VOLUME + Math.random() * 0.06;
+        const promise = step.play();
+        if (promise && typeof promise.catch === "function") {
+          promise.catch(() => {
+          });
+        }
+      } catch (e) {
+      }
+      stepTimer = 0.46 + Math.random() * 0.1;
+    }
+    return {
+      start,
+      startWind,
+      stopWind,
+      playStrike,
+      playStrikeLight,
+      playWin,
+      update
+    };
+  }
+
   // js/intro.js
   var HAND_DIR = "models/";
   var LEFT_URL = HAND_DIR + "hand_left.glb";
@@ -28665,7 +28806,16 @@
       return null;
     });
   }
-  function createIntro({ camera: camera2, flame: flame2, spot, hands, environment: environment2, setView: setView2, onDone }) {
+  function createIntro({
+    camera: camera2,
+    flame: flame2,
+    spot,
+    hands,
+    environment: environment2,
+    setView: setView2,
+    onDone,
+    audio: audio2
+  }) {
     const { left, right } = hands;
     const matchTip = left.getObjectByName("match_tip");
     const diyaWick = right.getObjectByName("diya_wick");
@@ -28706,6 +28856,8 @@
     const solveScratch = new Vector3();
     let started = false;
     let finished = false;
+    let strikeSoundPlayed = false;
+    let strikeLightSoundPlayed = false;
     let time = 0;
     let lit = false;
     let flare = 1;
@@ -28898,6 +29050,16 @@
         return;
       const d = Math.min(dt || 0, 0.1);
       time += d;
+      if (!strikeSoundPlayed && time >= CONTACT_AT) {
+        strikeSoundPlayed = true;
+        if (audio2)
+          audio2.playStrike();
+      }
+      if (!strikeLightSoundPlayed && time >= SCRAPE2_START) {
+        strikeLightSoundPlayed = true;
+        if (audio2)
+          audio2.playStrikeLight();
+      }
       let yaw = 0;
       let pitch = 0;
       if (time < PAN_END) {
@@ -29749,6 +29911,7 @@
   var handFill;
   var handFlame;
   var wind;
+  var audio;
   var houseBulbs = [];
   var houseLights = [];
   var houseGlow = [];
@@ -29818,6 +29981,7 @@
     camera.add(handFlame);
     flame = createFlame(camera);
     flame.mesh.layers.set(1);
+    audio = createAudio();
     wind = createWind(scene);
     ground = buildTerrain(scene, renderer);
     camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
@@ -29875,7 +30039,8 @@
           hands,
           environment: env,
           setView,
-          onDone: onIntroDone
+          onDone: onIntroDone,
+          audio
         });
         if (window.__DIYO_DEBUG)
           window.__DIYO_DEBUG.intro = intro;
@@ -29919,7 +30084,7 @@
     if (document.pointerLockElement === document.body) {
       UI.instructions.style.display = "none";
     } else {
-      UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
+      UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look";
       UI.instructions.style.display = "block";
     }
     if (intro) {
@@ -29937,6 +30102,8 @@
     if (state.playing)
       return;
     state.playing = true;
+    if (audio)
+      audio.start();
     UI.overlay.classList.add("is-leaving");
     window.setTimeout(() => {
       UI.overlay.style.display = "none";
@@ -30209,7 +30376,7 @@
       UI.instructions.style.display = "none";
     } else {
       if (state.playing && !state.gameOver && !state.won) {
-        UI.instructions.textContent = state.spectator ? "Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit" : "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
+        UI.instructions.textContent = state.spectator ? "Click to resume \u2022 SPECTATOR: WASD fly \u2022 Space up \u2022 Shift down \u2022 V to exit" : "Click to resume \u2022 WASD to move \u2022 Mouse to look";
         UI.instructions.style.display = "block";
       } else {
         UI.instructions.style.display = "none";
@@ -30288,6 +30455,8 @@
     state.keys = {};
     UI.message.style.display = "none";
     UI.instructions.style.display = "none";
+    if (audio)
+      audio.startWind();
   }
   function updateStranded(dt) {
     state.deathTime += dt;
@@ -30357,6 +30526,8 @@
     camera.rotation.set(0, yaw, 0);
     _prevYaw = yaw;
     _prevPitch = 0;
+    if (audio)
+      audio.stopWind();
     light.visible = true;
     light.intensity = 44;
     flame.setVisible(true);
@@ -30376,7 +30547,7 @@
     } catch (e) {
       console.warn("Pointer lock unavailable:", e);
     }
-    UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
+    UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look";
     UI.instructions.style.display = document.pointerLockElement === document.body ? "none" : "block";
   }
   function checkEnding() {
@@ -30397,6 +30568,8 @@
       glow.mat.emissive.set(glow.color);
       glow.mat.emissiveIntensity = 0;
     }
+    if (audio)
+      audio.playWin();
   }
   function updateEnding(dt) {
     state.endingTime += dt;
@@ -30564,6 +30737,9 @@
     const localZ = _velocity.dot(_axisZ);
     const yawDelta = state.yaw - _prevYaw;
     const pitchDelta = state.pitch - _prevPitch;
+    const walking = state.playing && !state.cinematic && !state.gameOver && !state.won && !state.stranded && !state.ending && !state.spectator && _velocity.lengthSq() > 0.25;
+    if (audio)
+      audio.update(delta, walking);
     flame.update(rawDelta, {
       localX,
       localY,
