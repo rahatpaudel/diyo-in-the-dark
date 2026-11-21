@@ -26843,16 +26843,23 @@
     const length = curve.getLength();
     const count = Math.max(2, Math.ceil(length / SAMPLE_STEP));
     const points = curve.getSpacedPoints(count);
+    const decision = PATH_DECISIONS.find(
+      (d) => d.x === def.points[0][0] && d.z === def.points[0][1]
+    ) || null;
+    const decisionId = decision ? decision.id : null;
     const samples = points.map((p, i) => ({
       x: p.x,
       z: p.z,
       t: i / count,
       branch: def.id,
+      kind: def.kind,
+      decision: decisionId,
       h: 0
     }));
     const branch = {
       id: def.id,
       kind: def.kind,
+      decision: decisionId,
       points: def.points,
       samples,
       length
@@ -26907,10 +26914,13 @@
     }
     if (best < 0)
       return null;
+    const sample = PATH_SAMPLES[best];
     return {
       dist: Math.sqrt(bestD2),
-      sample: PATH_SAMPLES[best],
-      branch: PATH_SAMPLES[best].branch
+      sample,
+      branch: sample.branch,
+      kind: sample.kind,
+      decision: sample.decision
     };
   }
   var TREES = [
@@ -28261,6 +28271,114 @@
     };
   }
 
+  // js/wind.js
+  var COUNT = 240;
+  var RANGE = 11;
+  var CEILING = 4.2;
+  var _matrix = new Matrix4();
+  var _basisX = new Vector3();
+  var _basisY = new Vector3();
+  var _basisZ = new Vector3();
+  var _scale = new Vector3();
+  var _wind = new Vector3();
+  function randomBetween(lo, hi) {
+    return lo + Math.random() * (hi - lo);
+  }
+  function createWind(scene2) {
+    const geometry = new PlaneGeometry(0.62, 0.018);
+    const material = new MeshBasicMaterial({
+      color: 13616562,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: DoubleSide
+    });
+    const mesh = new InstancedMesh(geometry, material, COUNT);
+    mesh.name = "Wind";
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    scene2.add(mesh);
+    const particles = [];
+    for (let i = 0; i < COUNT; i++) {
+      particles.push({
+        x: 0,
+        y: 0,
+        z: 0,
+        speed: randomBetween(7, 15),
+        length: randomBetween(0.55, 1.6),
+        phase: randomBetween(0, Math.PI * 2),
+        drift: randomBetween(-0.6, 0.6),
+        age: randomBetween(0, 4)
+      });
+    }
+    let intensity = 0;
+    let time = 0;
+    let spawned = false;
+    function respawn2(particle, camera2, windX, windZ, initial) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = initial ? randomBetween(1.5, RANGE) : randomBetween(RANGE * 0.7, RANGE);
+      particle.x = camera2.x + Math.cos(angle) * radius - windX * (initial ? 0 : 4);
+      particle.z = camera2.z + Math.sin(angle) * radius - windZ * (initial ? 0 : 4);
+      particle.y = camera2.y - 1.3 + randomBetween(0, CEILING);
+      particle.age = randomBetween(0, 3);
+      particle.phase = randomBetween(0, Math.PI * 2);
+    }
+    function update(dt, cameraPosition, active) {
+      time += dt;
+      const target = active ? 1 : 0;
+      const ease = 1 - Math.exp(-dt * (active ? 2.4 : 5));
+      intensity += (target - intensity) * ease;
+      material.opacity = intensity * 0.46;
+      mesh.visible = intensity > 0.01;
+      if (!mesh.visible)
+        return;
+      const windAngle = 0.72 + Math.sin(time * 0.31) * 0.22;
+      const windX = Math.cos(windAngle);
+      const windZ = Math.sin(windAngle);
+      _wind.set(windX, 0, windZ);
+      if (!spawned) {
+        spawned = true;
+        for (const particle of particles) {
+          respawn2(particle, cameraPosition, windX, windZ, true);
+        }
+      }
+      for (let i = 0; i < particles.length; i++) {
+        const particle = particles[i];
+        particle.age += dt;
+        const sway = Math.sin(particle.age * 4.5 + particle.phase);
+        particle.x += (windX * particle.speed + windZ * particle.drift * sway) * dt;
+        particle.z += (windZ * particle.speed - windX * particle.drift * sway) * dt;
+        particle.y += (sway * 0.35 + 0.12) * dt;
+        const dx = particle.x - cameraPosition.x;
+        const dz = particle.z - cameraPosition.z;
+        const dy = particle.y - cameraPosition.y;
+        if (dx * dx + dz * dz > RANGE * RANGE || dy > CEILING + 1.2 || dy < -2.4) {
+          respawn2(particle, cameraPosition, windX, windZ, false);
+          continue;
+        }
+        _basisZ.set(-dx, -dy, -dz);
+        if (_basisZ.lengthSq() < 1e-6)
+          _basisZ.set(0, 0, 1);
+        _basisZ.normalize();
+        _basisX.copy(_wind);
+        _basisX.addScaledVector(_basisZ, -_basisX.dot(_basisZ));
+        if (_basisX.lengthSq() < 1e-6)
+          _basisX.set(1, 0, 0);
+        _basisX.normalize();
+        _basisY.crossVectors(_basisZ, _basisX).normalize();
+        _matrix.makeBasis(_basisX, _basisY, _basisZ);
+        _matrix.scale(_scale.set(particle.length, 1, 1));
+        _matrix.setPosition(particle.x, particle.y, particle.z);
+        mesh.setMatrixAt(i, _matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    return {
+      mesh,
+      update
+    };
+  }
+
   // js/intro.js
   var HAND_DIR = "models/";
   var LEFT_URL = HAND_DIR + "hand_left.glb";
@@ -29526,6 +29644,8 @@
   // js/main.js
   var EYE_HEIGHT = 1.6;
   var PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
+  var COMMIT_DISTANCE = 3.4;
+  var STRANDED_SCREEN_DELAY = 2.4;
   var state = {
     playing: false,
     gameOver: false,
@@ -29535,6 +29655,10 @@
     // Secret free-fly inspection mode (toggled with V during play).
     spectator: false,
     spectatorSpeed: 12,
+    // Wrong-branch commitment and the stranded sequence.
+    stranded: false,
+    deathTime: 0,
+    deathNode: null,
     keys: {},
     moveSpeed: 3,
     mouseSensitivity: 2e-3,
@@ -29560,6 +29684,7 @@
   var flame;
   var handFill;
   var handFlame;
+  var wind;
   var environment = null;
   var ground = null;
   var intro = null;
@@ -29626,6 +29751,7 @@
     camera.add(handFlame);
     flame = createFlame(camera);
     flame.mesh.layers.set(1);
+    wind = createWind(scene);
     ground = buildTerrain(scene, renderer);
     camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     buildHouse();
@@ -29845,7 +29971,7 @@
   function onKeyDown(e) {
     if (state.cinematic)
       return;
-    if (e.code === "KeyV" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && state.playing && !state.gameOver && !state.won) {
+    if (e.code === "KeyV" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && state.playing && !state.gameOver && !state.won && !state.stranded) {
       toggleSpectator();
       return;
     }
@@ -29956,6 +30082,10 @@
     if (!state.playing || state.gameOver || state.won || state.cinematic) {
       return;
     }
+    if (state.stranded) {
+      updateStranded(dt);
+      return;
+    }
     const speed = state.moveSpeed * dt;
     const move = new Vector3();
     const forward = new Vector3();
@@ -29984,6 +30114,9 @@
       }
       camera.position.y = heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
     }
+    checkWrongPath();
+    if (state.stranded)
+      return;
     if (state.keys["KeyE"]) {
       delete state.keys["KeyE"];
       const dHouse = camera.position.distanceTo(house.position);
@@ -29993,6 +30126,119 @@
     }
     light.intensity = 44 * flame.flicker;
     checkInteractions();
+  }
+  function checkWrongPath() {
+    if (state.gameOver || state.won || state.stranded)
+      return;
+    const near = nearestPath(camera.position.x, camera.position.z, 12);
+    if (!near || near.kind !== "decoy" || !near.decision)
+      return;
+    const node = PATH_DECISIONS.find((d) => d.id === near.decision);
+    if (!node)
+      return;
+    const committed = Math.hypot(
+      camera.position.x - node.x,
+      camera.position.z - node.z
+    );
+    if (committed < COMMIT_DISTANCE)
+      return;
+    startStranded(node);
+  }
+  function startStranded(node) {
+    state.stranded = true;
+    state.deathTime = 0;
+    state.deathNode = node;
+    state.keys = {};
+    UI.message.style.display = "none";
+    UI.instructions.style.display = "none";
+  }
+  function updateStranded(dt) {
+    state.deathTime += dt;
+    const t = state.deathTime;
+    const fade = Math.max(0, 1 - t / 0.9);
+    const sputter = t < 0.9 ? 0.65 + 0.35 * Math.sin(t * 46) : 0;
+    light.intensity = 44 * fade * sputter;
+    if (fade <= 0 && flame.mesh.visible)
+      flame.setVisible(false);
+    if (intro)
+      intro.handLight.intensity = 4.6 * fade;
+    if (t >= STRANDED_SCREEN_DELAY)
+      showStrandedScreen();
+  }
+  function showStrandedScreen() {
+    if (state.gameOver)
+      return;
+    state.playing = false;
+    state.gameOver = true;
+    state.won = false;
+    if (document.exitPointerLock)
+      document.exitPointerLock();
+    UI.instructions.style.display = "none";
+    UI.message.style.display = "none";
+    UI.overlay.classList.remove("menu", "is-leaving");
+    UI.overlay.innerHTML = `
+    <h1 style="color:#d98b6a">You are stranded</h1>
+    <p>The wind took your diyo. The forest keeps what it catches.</p>
+    <div class="overlay-actions">
+      <button id="respawn-btn" type="button">Respawn</button>
+      <button id="home-btn" type="button">Home</button>
+    </div>
+  `;
+    UI.overlay.style.display = "flex";
+    const respawnBtn = document.getElementById("respawn-btn");
+    const homeBtn = document.getElementById("home-btn");
+    if (respawnBtn)
+      respawnBtn.addEventListener("click", respawn);
+    if (homeBtn) {
+      homeBtn.addEventListener("click", () => {
+        window.location.reload();
+      });
+    }
+  }
+  function respawn() {
+    const node = state.deathNode || PATH_DECISIONS[0];
+    let px2 = node.x;
+    let pz2 = node.z + 2.4;
+    const near = nearestPath(px2, pz2, 8);
+    if (near) {
+      px2 = near.sample.x;
+      pz2 = near.sample.z;
+    }
+    state.playing = true;
+    state.gameOver = false;
+    state.won = false;
+    state.stranded = false;
+    state.deathTime = 0;
+    state.deathNode = null;
+    state.keys = {};
+    state.accumulatedTime = 0;
+    camera.position.set(px2, heightAt(px2, pz2) + EYE_HEIGHT, pz2);
+    const yaw = Math.atan2(-(node.x - px2), -(node.z - pz2));
+    state.yaw = yaw;
+    state.pitch = 0;
+    camera.rotation.set(0, yaw, 0);
+    _prevYaw = yaw;
+    _prevPitch = 0;
+    light.visible = true;
+    light.intensity = 44;
+    flame.setVisible(true);
+    if (flame.ignite)
+      flame.ignite();
+    if (intro)
+      intro.handLight.intensity = 4.6;
+    UI.overlay.style.display = "none";
+    UI.overlay.innerHTML = "";
+    UI.message.style.display = "none";
+    try {
+      const lock = document.body.requestPointerLock();
+      if (lock && typeof lock.catch === "function")
+        lock.catch(() => {
+        });
+    } catch (e) {
+      console.warn("Pointer lock unavailable:", e);
+    }
+    UI.instructions.textContent = "Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact";
+    UI.instructions.style.display = document.pointerLockElement === document.body ? "none" : "block";
   }
   function checkInteractions() {
     const dHouse = camera.position.distanceTo(house.position);
@@ -30156,7 +30402,7 @@
       flame.uniforms.uIntensity.value *= intro.flameBoost;
     }
     if (handFill) {
-      const target = state.cinematic ? intro && intro.lit ? 3 : 0.15 : state.playing ? 3 : 0;
+      const target = state.cinematic ? intro && intro.lit ? 3 : 0.15 : state.playing && !state.stranded ? 3 : 0;
       handFill.intensity += (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
     }
     if (handBaseReady && !state.cinematic) {
@@ -30170,6 +30416,8 @@
         handFlame.intensity = 0;
       }
     }
+    if (wind)
+      wind.update(delta, camera.position, state.stranded);
     _prevYaw = state.yaw;
     _prevPitch = state.pitch;
     renderFrame();

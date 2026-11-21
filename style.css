@@ -111,6 +111,13 @@ body {
   transform: scale(0.97);
 }
 
+.overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+}
+
 #boot-error {
   display: none;
   margin-top: 18px;

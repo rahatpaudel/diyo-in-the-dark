@@ -1,16 +1,29 @@
 import * as THREE from './vendor/three.module.js';
 import { loadEnvironment } from './environment.js';
 import { createFlame } from './flame.js';
+import { createWind } from './wind.js';
 import { loadHands, createIntro } from './intro.js';
 import { buildTerrain, heightAt } from './terrain.js';
 import { buildRiddleSign } from './riddle.js';
-import { pathSummary, nearestPath, PATH_HALF_WIDTH, HOUSE_POINT } from './path.js';
+import {
+  pathSummary,
+  nearestPath,
+  PATH_HALF_WIDTH,
+  PATH_DECISIONS,
+  HOUSE_POINT
+} from './path.js';
 
 /* ------------------------------------------------------------------ */
 /*  Game state                                                        */
 /* ------------------------------------------------------------------ */
 const EYE_HEIGHT = 1.6;
 const PATH_CORRIDOR = PATH_HALF_WIDTH + 0.45;
+// How far down a decoy branch the player must walk before the forest closes.
+// Kept beyond the overlap zone at the fork, so brushing the correct path's
+// edge can never be mistaken for choosing a decoy.
+const COMMIT_DISTANCE = 3.4;
+// Time for the gust to rise and the diya to die before the screen appears.
+const STRANDED_SCREEN_DELAY = 2.4;
 
 const state = {
   playing: false,
@@ -23,6 +36,11 @@ const state = {
   // Secret free-fly inspection mode (toggled with V during play).
   spectator: false,
   spectatorSpeed: 12,
+
+  // Wrong-branch commitment and the stranded sequence.
+  stranded: false,
+  deathTime: 0,
+  deathNode: null,
 
   keys: {},
   moveSpeed: 3,
@@ -52,7 +70,7 @@ const UI = {
 /*  Three.js scene objects                                            */
 /* ------------------------------------------------------------------ */
 let scene, camera, renderer, clock;
-let light, house, flame, handFill, handFlame;
+let light, house, flame, handFill, handFlame, wind;
 let environment = null;
 let ground = null;
 let intro = null;
@@ -167,6 +185,9 @@ function init() {
   flame = createFlame(camera);
   // HUD layer: drawn after the world with a cleared depth buffer.
   flame.mesh.layers.set(1);
+
+  // Wrong-branch wind. Inert until the player commits to a decoy.
+  wind = createWind(scene);
 
   // World
   ground = buildTerrain(scene, renderer);
@@ -485,7 +506,8 @@ function onKeyDown(e) {
     !e.altKey &&
     state.playing &&
     !state.gameOver &&
-    !state.won
+    !state.won &&
+    !state.stranded
   ) {
     toggleSpectator();
     return;
@@ -646,6 +668,13 @@ function updatePlayer(dt) {
     return;
   }
 
+  // Once the forest has caught the player, movement is over. Only the look
+  // controls and the dying diya remain until the stranded screen appears.
+  if (state.stranded) {
+    updateStranded(dt);
+    return;
+  }
+
   const speed = state.moveSpeed * dt;
   const move = new THREE.Vector3();
 
@@ -681,6 +710,11 @@ function updatePlayer(dt) {
       heightAt(camera.position.x, camera.position.z) + EYE_HEIGHT;
   }
 
+  // A decoy branch is a commitment. Walking a couple of metres past its fork
+  // hands the player to the wind; there is no walking back out.
+  checkWrongPath();
+  if (state.stranded) return;
+
   // Consume interact key
   if (state.keys['KeyE']) {
     delete state.keys['KeyE'];
@@ -694,6 +728,130 @@ function updatePlayer(dt) {
   light.intensity = 44 * flame.flicker;
 
   checkInteractions();
+}
+
+function checkWrongPath() {
+  if (state.gameOver || state.won || state.stranded) return;
+
+  const near = nearestPath(camera.position.x, camera.position.z, 12);
+  if (!near || near.kind !== 'decoy' || !near.decision) return;
+
+  const node = PATH_DECISIONS.find((d) => d.id === near.decision);
+  if (!node) return;
+
+  const committed = Math.hypot(
+    camera.position.x - node.x,
+    camera.position.z - node.z
+  );
+  if (committed < COMMIT_DISTANCE) return;
+
+  startStranded(node);
+}
+
+function startStranded(node) {
+  state.stranded = true;
+  state.deathTime = 0;
+  state.deathNode = node;
+  state.keys = {};
+  UI.message.style.display = 'none';
+  UI.instructions.style.display = 'none';
+}
+
+function updateStranded(dt) {
+  state.deathTime += dt;
+  const t = state.deathTime;
+
+  // The flame gutters, then the light is gone.
+  const fade = Math.max(0, 1 - t / 0.9);
+  const sputter = t < 0.9 ? 0.65 + 0.35 * Math.sin(t * 46) : 0;
+  light.intensity = 44 * fade * sputter;
+  if (fade <= 0 && flame.mesh.visible) flame.setVisible(false);
+  if (intro) intro.handLight.intensity = 4.6 * fade;
+
+  if (t >= STRANDED_SCREEN_DELAY) showStrandedScreen();
+}
+
+function showStrandedScreen() {
+  if (state.gameOver) return;
+  state.playing = false;
+  state.gameOver = true;
+  state.won = false;
+
+  if (document.exitPointerLock) document.exitPointerLock();
+
+  UI.instructions.style.display = 'none';
+  UI.message.style.display = 'none';
+  UI.overlay.classList.remove('menu', 'is-leaving');
+  UI.overlay.innerHTML = `
+    <h1 style="color:#d98b6a">You are stranded</h1>
+    <p>The wind took your diyo. The forest keeps what it catches.</p>
+    <div class="overlay-actions">
+      <button id="respawn-btn" type="button">Respawn</button>
+      <button id="home-btn" type="button">Home</button>
+    </div>
+  `;
+  UI.overlay.style.display = 'flex';
+
+  const respawnBtn = document.getElementById('respawn-btn');
+  const homeBtn = document.getElementById('home-btn');
+  if (respawnBtn) respawnBtn.addEventListener('click', respawn);
+  if (homeBtn) {
+    homeBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
+}
+
+function respawn() {
+  const node = state.deathNode || PATH_DECISIONS[0];
+
+  // Put the player a couple of metres before the failed fork, on the incoming
+  // trail, looking straight at it.
+  let px = node.x;
+  let pz = node.z + 2.4;
+  const near = nearestPath(px, pz, 8);
+  if (near) {
+    px = near.sample.x;
+    pz = near.sample.z;
+  }
+
+  state.playing = true;
+  state.gameOver = false;
+  state.won = false;
+  state.stranded = false;
+  state.deathTime = 0;
+  state.deathNode = null;
+  state.keys = {};
+  state.accumulatedTime = 0;
+
+  camera.position.set(px, heightAt(px, pz) + EYE_HEIGHT, pz);
+  const yaw = Math.atan2(-(node.x - px), -(node.z - pz));
+  state.yaw = yaw;
+  state.pitch = 0;
+  camera.rotation.set(0, yaw, 0);
+  _prevYaw = yaw;
+  _prevPitch = 0;
+
+  light.visible = true;
+  light.intensity = 44;
+  flame.setVisible(true);
+  if (flame.ignite) flame.ignite();
+  if (intro) intro.handLight.intensity = 4.6;
+
+  UI.overlay.style.display = 'none';
+  UI.overlay.innerHTML = '';
+  UI.message.style.display = 'none';
+
+  try {
+    const lock = document.body.requestPointerLock();
+    if (lock && typeof lock.catch === 'function') lock.catch(() => {});
+  } catch (e) {
+    console.warn('Pointer lock unavailable:', e);
+  }
+  UI.instructions.textContent =
+    'Click to resume \u2022 WASD to move \u2022 Mouse to look \u2022 E to interact';
+  UI.instructions.style.display =
+    document.pointerLockElement === document.body ? 'none' : 'block';
 }
 
 function checkInteractions() {
@@ -920,7 +1078,7 @@ function animate() {
   if (handFill) {
     const target = state.cinematic
       ? (intro && intro.lit ? 3.0 : 0.15)
-      : (state.playing ? 3.0 : 0);
+      : (state.playing && !state.stranded ? 3.0 : 0);
     handFill.intensity +=
       (target - handFill.intensity) * (1 - Math.exp(-7 * delta));
   }
@@ -941,6 +1099,8 @@ function animate() {
       handFlame.intensity = 0;
     }
   }
+
+  if (wind) wind.update(delta, camera.position, state.stranded);
 
   // Remember the look angles for the next frame: mousemove fires between
   // frames, so this is the only place the change can be measured.

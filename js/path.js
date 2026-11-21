@@ -247,17 +247,28 @@ for (const def of BRANCHES) {
   const length = curve.getLength();
   const count = Math.max(2, Math.ceil(length / SAMPLE_STEP));
   const points = curve.getSpacedPoints(count);
+
+  // Which fork this branch belongs to. The start branch has none.
+  const decision =
+    PATH_DECISIONS.find(
+      (d) => d.x === def.points[0][0] && d.z === def.points[0][1]
+    ) || null;
+  const decisionId = decision ? decision.id : null;
+
   const samples = points.map((p, i) => ({
     x: p.x,
     z: p.z,
     t: i / count,
     branch: def.id,
+    kind: def.kind,
+    decision: decisionId,
     h: 0
   }));
 
   const branch = {
     id: def.id,
     kind: def.kind,
+    decision: decisionId,
     points: def.points,
     samples,
     length
@@ -316,10 +327,13 @@ export function nearestPath(x, z, maxDist = 6) {
     }
   }
   if (best < 0) return null;
+  const sample = PATH_SAMPLES[best];
   return {
     dist: Math.sqrt(bestD2),
-    sample: PATH_SAMPLES[best],
-    branch: PATH_SAMPLES[best].branch
+    sample,
+    branch: sample.branch,
+    kind: sample.kind,
+    decision: sample.decision
   };
 }
 
