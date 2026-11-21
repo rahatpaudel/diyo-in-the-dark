@@ -25759,60 +25759,62 @@
     textures.pathMap.repeat.set(1, 1);
     textures.pathMap.wrapS = textures.pathMap.wrapT = RepeatWrapping;
     textures.pathMap.needsUpdate = true;
-    const pathPositions = [];
-    const pathNormals = [];
-    const pathUvs = [];
-    const pathColors = [];
-    const pathIndices = [];
-    const edgeColor = new Color(7035458);
-    const innerColor = new Color(16777215);
-    for (let bi = 0; bi < PATH_BRANCHES.length; bi++) {
-      const branch = PATH_BRANCHES[bi];
-      const samples = branch.samples;
-      const startVertex = pathPositions.length / 3;
-      let travelled = 0;
-      for (let i = 0; i < samples.length; i++) {
-        if (i > 0) {
-          travelled += Math.hypot(
-            samples[i].x - samples[i - 1].x,
-            samples[i].z - samples[i - 1].z
-          );
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const s of PATH_SAMPLES) {
+      if (s.x < minX)
+        minX = s.x;
+      if (s.x > maxX)
+        maxX = s.x;
+      if (s.z < minZ)
+        minZ = s.z;
+      if (s.z > maxZ)
+        maxZ = s.z;
+    }
+    minX -= 4;
+    maxX += 4;
+    minZ -= 4;
+    maxZ += 4;
+    const cell = 0.28;
+    const pPositions = [];
+    const pUvs = [];
+    const pColors = [];
+    const pIndices = [];
+    const cEdge = new Color(7035458);
+    const cInner = new Color(16777215);
+    const pc = new Color();
+    for (let z = minZ; z <= maxZ; z += cell) {
+      for (let x = minX; x <= maxX; x += cell) {
+        const cx = x + cell * 0.5;
+        const cz = z + cell * 0.5;
+        const near = nearestPath(cx, cz, 4);
+        if (!near)
+          continue;
+        const width = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
+        if (near.dist > width)
+          continue;
+        const t = clamp01((near.dist - (width - 0.35)) / 0.35);
+        pc.copy(cEdge).lerp(cInner, 1 - t);
+        const base = pPositions.length / 3;
+        const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
+        for (const [ox, oz] of corners) {
+          const px2 = x + ox;
+          const pz2 = z + oz;
+          pPositions.push(px2, heightAt(px2, pz2) + 0.03, pz2);
+          pUvs.push(px2 / 3, pz2 / 3);
+          pColors.push(pc.r, pc.g, pc.b);
         }
-        const prev = samples[Math.max(0, i - 1)];
-        const next = samples[Math.min(samples.length - 1, i + 1)];
-        let dx = next.x - prev.x;
-        let dz = next.z - prev.z;
-        const len = Math.hypot(dx, dz) || 1;
-        dx /= len;
-        dz /= len;
-        const nx = -dz;
-        const nz = dx;
-        const half = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(i * 0.31 + bi));
-        const offsets = [-half, -half * 0.78, half * 0.78, half];
-        const uvs2 = [0, 0.27, 0.73, 1];
-        for (let k = 0; k < 4; k++) {
-          const x = samples[i].x + nx * offsets[k];
-          const z = samples[i].z + nz * offsets[k];
-          pathPositions.push(x, heightAt(x, z) + 0.028 + bi * 4e-4, z);
-          pathUvs.push(uvs2[k], travelled / 2.5);
-          const c2 = k === 0 || k === 3 ? edgeColor : innerColor;
-          pathColors.push(c2.r, c2.g, c2.b);
-        }
-        if (i > 0) {
-          const a = startVertex + (i - 1) * 4;
-          const b = startVertex + i * 4;
-          for (let k = 0; k < 3; k++) {
-            pathIndices.push(a + k, b + k, a + k + 1);
-            pathIndices.push(a + k + 1, b + k, b + k + 1);
-          }
-        }
+        pIndices.push(base, base + 2, base + 1);
+        pIndices.push(base + 1, base + 2, base + 3);
       }
     }
     const pathGeo = new BufferGeometry();
-    pathGeo.setAttribute("position", new Float32BufferAttribute(pathPositions, 3));
-    pathGeo.setAttribute("uv", new Float32BufferAttribute(pathUvs, 2));
-    pathGeo.setAttribute("color", new Float32BufferAttribute(pathColors, 3));
-    pathGeo.setIndex(pathIndices);
+    pathGeo.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    pathGeo.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    pathGeo.setAttribute("color", new Float32BufferAttribute(colors, 3));
+    pathGeo.setIndex(indices);
     pathGeo.computeVertexNormals();
     const pathMaterial = new MeshStandardMaterial({
       map: textures.pathMap,
@@ -27271,7 +27273,7 @@
     renderer.shadowMap.type = PCFSoftShadowMap;
     clock = new Clock();
     scene.add(camera);
-    light = new SpotLight(16751164, 44, 14, Math.PI / 5, 0.5, 1.4);
+    light = new SpotLight(16751164, 44, 11, Math.PI / 5, 0.5, 1.4);
     light.castShadow = true;
     light.shadow.mapSize.width = 1024;
     light.shadow.mapSize.height = 1024;
@@ -27434,7 +27436,7 @@
     const wallMat = new MeshStandardMaterial({ color: 7755583, roughness: 0.9 });
     const woodMat = new MeshStandardMaterial({ color: 4860952, roughness: 0.85 });
     const roofMat = new MeshStandardMaterial({ color: 2626831, roughness: 0.95 });
-    const glowMat = new MeshBasicMaterial({ color: 16761450 });
+    const glowMat = new MeshStandardMaterial({ color: 854278, roughness: 0.92 });
     const plinth = new Mesh(new BoxGeometry(7.6, 0.6, 7.6), stoneMat);
     plinth.position.y = 0.3;
     plinth.castShadow = true;
@@ -27473,7 +27475,7 @@
       post.castShadow = true;
       house.add(post);
     }
-    const winMat = new MeshBasicMaterial({ color: 16761450 });
+    const winMat = new MeshStandardMaterial({ color: 854278, roughness: 0.92 });
     const addWindow = (x, y, z, ry) => {
       const w = new Mesh(new PlaneGeometry(1.1, 1.1), winMat);
       w.position.set(x, y, z);
@@ -27485,9 +27487,8 @@
     addWindow(-3.205, 3, 0, -Math.PI / 2);
     addWindow(3.205, 3, 0, Math.PI / 2);
     const marigold = new MeshStandardMaterial({
-      color: 14254623,
-      emissive: 3807746,
-      roughness: 0.8
+      color: 7027728,
+      roughness: 0.85
     });
     for (let i = 0; i < 9; i++) {
       const flower = new Mesh(new SphereGeometry(0.12, 6, 5), marigold);

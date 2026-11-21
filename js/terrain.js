@@ -506,71 +506,68 @@ export function buildTerrain(scene, renderer) {
   mesh.castShadow = false;
   scene.add(mesh);
 
-  // The trail is its own continuous ribbon mesh. Keeping it off the terrain
-  // mask removes the terrain shading bands and gives it a clean, textured UV.
+  // One continuous trail surface built from the union of its branches. A
+  // single world-space texture means there are no seams at the forks.
   textures.pathMap.repeat.set(1, 1);
   textures.pathMap.wrapS = textures.pathMap.wrapT = THREE.RepeatWrapping;
   textures.pathMap.needsUpdate = true;
 
-  const pathPositions = [];
-  const pathNormals = [];
-  const pathUvs = [];
-  const pathColors = [];
-  const pathIndices = [];
-  const edgeColor = new THREE.Color(0x6b5a42);
-  const innerColor = new THREE.Color(0xffffff);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const s of PATH_SAMPLES) {
+    if (s.x < minX) minX = s.x;
+    if (s.x > maxX) maxX = s.x;
+    if (s.z < minZ) minZ = s.z;
+    if (s.z > maxZ) maxZ = s.z;
+  }
+  minX -= 4;
+  maxX += 4;
+  minZ -= 4;
+  maxZ += 4;
 
-  for (let bi = 0; bi < PATH_BRANCHES.length; bi++) {
-    const branch = PATH_BRANCHES[bi];
-    const samples = branch.samples;
-    const startVertex = pathPositions.length / 3;
-    let travelled = 0;
+  const cell = 0.28;
+  const pPositions = [];
+  const pUvs = [];
+  const pColors = [];
+  const pIndices = [];
+  const cEdge = new THREE.Color(0x6b5a42);
+  const cInner = new THREE.Color(0xffffff);
+  const pc = new THREE.Color();
 
-    for (let i = 0; i < samples.length; i++) {
-      if (i > 0) {
-        travelled += Math.hypot(
-          samples[i].x - samples[i - 1].x,
-          samples[i].z - samples[i - 1].z
-        );
+  for (let z = minZ; z <= maxZ; z += cell) {
+    for (let x = minX; x <= maxX; x += cell) {
+      const cx = x + cell * 0.5;
+      const cz = z + cell * 0.5;
+      const near = nearestPath(cx, cz, 4);
+      if (!near) continue;
+      const width =
+        PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(cz * 0.13 + cx * 0.07));
+      if (near.dist > width) continue;
+
+      const t = clamp01((near.dist - (width - 0.35)) / 0.35);
+      pc.copy(cEdge).lerp(cInner, 1 - t);
+
+      const base = pPositions.length / 3;
+      const corners = [[0, 0], [cell, 0], [0, cell], [cell, cell]];
+      for (const [ox, oz] of corners) {
+        const px = x + ox;
+        const pz = z + oz;
+        pPositions.push(px, heightAt(px, pz) + 0.03, pz);
+        pUvs.push(px / 3, pz / 3);
+        pColors.push(pc.r, pc.g, pc.b);
       }
-      const prev = samples[Math.max(0, i - 1)];
-      const next = samples[Math.min(samples.length - 1, i + 1)];
-      let dx = next.x - prev.x;
-      let dz = next.z - prev.z;
-      const len = Math.hypot(dx, dz) || 1;
-      dx /= len;
-      dz /= len;
-      const nx = -dz;
-      const nz = dx;
-      const half = PATH_HALF_WIDTH * (0.92 + 0.1 * Math.sin(i * 0.31 + bi));
-      const offsets = [-half, -half * 0.78, half * 0.78, half];
-      const uvs = [0, 0.27, 0.73, 1];
-
-      for (let k = 0; k < 4; k++) {
-        const x = samples[i].x + nx * offsets[k];
-        const z = samples[i].z + nz * offsets[k];
-        pathPositions.push(x, heightAt(x, z) + 0.028 + bi * 0.0004, z);
-        pathUvs.push(uvs[k], travelled / 2.5);
-        const c = k === 0 || k === 3 ? edgeColor : innerColor;
-        pathColors.push(c.r, c.g, c.b);
-      }
-
-      if (i > 0) {
-        const a = startVertex + (i - 1) * 4;
-        const b = startVertex + i * 4;
-        for (let k = 0; k < 3; k++) {
-          pathIndices.push(a + k, b + k, a + k + 1);
-          pathIndices.push(a + k + 1, b + k, b + k + 1);
-        }
-      }
+      pIndices.push(base, base + 2, base + 1);
+      pIndices.push(base + 1, base + 2, base + 3);
     }
   }
 
   const pathGeo = new THREE.BufferGeometry();
-  pathGeo.setAttribute('position', new THREE.Float32BufferAttribute(pathPositions, 3));
-  pathGeo.setAttribute('uv', new THREE.Float32BufferAttribute(pathUvs, 2));
-  pathGeo.setAttribute('color', new THREE.Float32BufferAttribute(pathColors, 3));
-  pathGeo.setIndex(pathIndices);
+  pathGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  pathGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  pathGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  pathGeo.setIndex(indices);
   pathGeo.computeVertexNormals();
 
   const pathMaterial = new THREE.MeshStandardMaterial({
