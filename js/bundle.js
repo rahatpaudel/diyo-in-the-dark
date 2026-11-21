@@ -19251,6 +19251,53 @@
       });
     }
   }
+  var CircleGeometry = class _CircleGeometry extends BufferGeometry {
+    constructor(radius = 1, segments = 32, thetaStart = 0, thetaLength = Math.PI * 2) {
+      super();
+      this.type = "CircleGeometry";
+      this.parameters = {
+        radius,
+        segments,
+        thetaStart,
+        thetaLength
+      };
+      segments = Math.max(3, segments);
+      const indices = [];
+      const vertices = [];
+      const normals = [];
+      const uvs = [];
+      const vertex2 = new Vector3();
+      const uv = new Vector2();
+      vertices.push(0, 0, 0);
+      normals.push(0, 0, 1);
+      uvs.push(0.5, 0.5);
+      for (let s = 0, i = 3; s <= segments; s++, i += 3) {
+        const segment = thetaStart + s / segments * thetaLength;
+        vertex2.x = radius * Math.cos(segment);
+        vertex2.y = radius * Math.sin(segment);
+        vertices.push(vertex2.x, vertex2.y, vertex2.z);
+        normals.push(0, 0, 1);
+        uv.x = (vertices[i] / radius + 1) / 2;
+        uv.y = (vertices[i + 1] / radius + 1) / 2;
+        uvs.push(uv.x, uv.y);
+      }
+      for (let i = 1; i <= segments; i++) {
+        indices.push(i, i + 1, 0);
+      }
+      this.setIndex(indices);
+      this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+      this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+      this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    }
+    copy(source) {
+      super.copy(source);
+      this.parameters = Object.assign({}, source.parameters);
+      return this;
+    }
+    static fromJSON(data) {
+      return new _CircleGeometry(data.radius, data.segments, data.thetaStart, data.thetaLength);
+    }
+  };
   var CylinderGeometry = class _CylinderGeometry extends BufferGeometry {
     constructor(radiusTop = 1, radiusBottom = 1, height = 1, radialSegments = 32, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
       super();
@@ -25188,38 +25235,51 @@
   var RIGHT_URL = HAND_DIR + "hand_right.glb";
   var RIGHT_POSE = {
     position: [0.43, -0.45, -0.13],
-    rotation: [-0.07, 0, 0],
+    rotation: [-0.02, 0, 0],
     scale: 0.8
   };
   var RIGHT_CARRY_POSE = {
-    position: [0.385, -0.435, -0.13],
-    rotation: [-0.04, 0.13, 0.07],
+    position: [0.345, -0.435, -0.13],
+    rotation: [-0.02, 0.24, 0.06],
     scale: 0.8
   };
-  var RIGHT_TILT_START = 2.8;
-  var RIGHT_TILT_END = 4.3;
-  var RIGHT_HOLD_END = 4.9;
-  var RIGHT_RETURN_END = 5.65;
+  var RIGHT_TILT_START = 2.55;
+  var RIGHT_TILT_END = 4.05;
+  var RIGHT_HOLD_END = 4.78;
+  var RIGHT_RETURN_END = 5.55;
   var STRIKE_YAW = 0.83;
   var STRIKE_PITCH = -0.25;
   var STRIKE_ROT = [0.16, -0.7, 0.05];
   var STRIKE_SCALE = 0.9;
   var LIGHT_ROT = [-0.06, -0.34, 0.04];
   var LIGHT_SCALE = 0.72;
+  var APPROACH_ROT = [0.3, -0.5, 0.1];
   var FLAME_MATCH_SCALE = 0.5;
   var MAX_STRIKE_REACH = 1;
-  var PULLBACK = new Vector3(0.01, 0.05, 0.11);
-  var SCRAPE_DISTANCE = 0.07;
+  var SCRAPE_DISTANCE = 0.1;
+  var SCRAPE2_DISTANCE = 0.125;
+  var RESET_LIFT = 0.05;
+  var RECOIL_LIFT = 0.09;
+  var RECOIL_PULL = 0.05;
+  var TRANSFER_DIP_Y = -0.012;
+  var TRANSFER_DIP_Z = 6e-3;
+  var RECOIL_ROT_BLEND = 0.22;
+  var RECOIL_SCALE_BLEND = 0.14;
   var PAN_END = 1.25;
-  var APPROACH_END = 1.55;
-  var SCRAPE1_END = 1.85;
-  var SCRAPE2_END = 2.3;
-  var IGNITE_AT = SCRAPE1_END + 0.16;
-  var CARRY_START = 2.8;
-  var CARRY_END = 4.3;
-  var TRANSFER_END = 4.7;
-  var DROP_END = 5.35;
-  var END = 5.8;
+  var CONTACT_AT = 1.45;
+  var SCRAPE1_END = 1.72;
+  var RESET_END = 1.98;
+  var SCRAPE2_START = 2.04;
+  var SCRAPE2_END = 2.38;
+  var IGNITE_AT = 2.24;
+  var CARRY_START = 2.62;
+  var CARRY_END = 4.2;
+  var TRANSFER_END = 4.55;
+  var WITHDRAW_END = 4.75;
+  var DROP_END = 5.4;
+  var END = 5.85;
+  var CAMERA_RETURN_START = 2.38;
+  var CAMERA_RETURN_END = 3.98;
   var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
   var lerp2 = (a, b, t) => a + (b - a) * t;
   var smooth = (t) => {
@@ -25230,10 +25290,88 @@
     t = clamp01(t);
     return t * t * t * (t * (t * 6 - 15) + 10);
   };
+  var easeIn = (t) => {
+    t = clamp01(t);
+    return t * t * t;
+  };
+  function bezier3(a, b, c, d, t, out) {
+    const u = 1 - t;
+    const uu = u * u;
+    const tt = t * t;
+    return out.copy(a).multiplyScalar(uu * u).addScaledVector(b, 3 * uu * t).addScaledVector(c, 3 * u * tt).addScaledVector(d, tt * t);
+  }
   function loadOne(loader, url) {
     return new Promise((resolve, reject) => {
       loader.load(url, resolve, void 0, reject);
     });
+  }
+  function capOpenEnd(root) {
+    let arm = null;
+    let most = 0;
+    root.traverse((o) => {
+      if (!o.isMesh || !o.geometry)
+        return;
+      const count = o.geometry.attributes.position ? o.geometry.attributes.position.count : 0;
+      if (count > most) {
+        most = count;
+        arm = o;
+      }
+    });
+    if (!arm)
+      return;
+    const geo = arm.geometry;
+    const pos = geo.attributes.position;
+    const index = geo.index;
+    const triangles = index ? index.count / 3 : pos.count / 3;
+    const edges = /* @__PURE__ */ new Map();
+    const key = (a, b) => a < b ? a + ":" + b : b + ":" + a;
+    for (let i = 0; i < triangles; i++) {
+      const a = index ? index.getX(i * 3) : i * 3;
+      const b = index ? index.getX(i * 3 + 1) : i * 3 + 1;
+      const c = index ? index.getX(i * 3 + 2) : i * 3 + 2;
+      const pairs = [
+        [a, b],
+        [b, c],
+        [c, a]
+      ];
+      for (const [u, v] of pairs) {
+        const k = key(u, v);
+        const edge = edges.get(k);
+        if (edge)
+          edge.n += 1;
+        else
+          edges.set(k, { a: u, b: v, n: 1 });
+      }
+    }
+    const loop = [];
+    for (const edge of edges.values()) {
+      if (edge.n === 1)
+        loop.push(edge.a, edge.b);
+    }
+    if (loop.length < 8)
+      return;
+    const mn = new Vector3(Infinity, Infinity, Infinity);
+    const mx = new Vector3(-Infinity, -Infinity, -Infinity);
+    const p = new Vector3();
+    for (const i of loop) {
+      p.fromBufferAttribute(pos, i);
+      mn.min(p);
+      mx.max(p);
+    }
+    const cap = new Mesh(
+      new CircleGeometry(1, 32),
+      new MeshStandardMaterial({
+        color: 1181957,
+        roughness: 1,
+        metalness: 0,
+        side: DoubleSide
+      })
+    );
+    cap.name = "left_forearm_cap";
+    cap.position.set((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z - 3e-3);
+    cap.scale.set((mx.x - mn.x) / 2, (mx.y - mn.y) / 2, 1);
+    cap.frustumCulled = false;
+    arm.add(cap);
   }
   function prepare2(root, isLeft) {
     root.traverse((o) => {
@@ -25246,7 +25384,7 @@
       for (const m of mats) {
         if (!m)
           continue;
-        m.side = FrontSide;
+        m.side = isLeft ? DoubleSide : FrontSide;
         if (m.metalness !== void 0)
           m.metalness = 0;
         if (m.roughness !== void 0)
@@ -25264,6 +25402,7 @@
     return Promise.all([loadOne(loader, LEFT_URL), loadOne(loader, RIGHT_URL)]).then(([left, right]) => {
       prepare2(left.scene, true);
       prepare2(right.scene, false);
+      capOpenEnd(left.scene);
       return { left: left.scene, right: right.scene };
     }).catch((err) => {
       console.warn("[hands] could not load hand models:", err && err.message);
@@ -25294,13 +25433,18 @@
     const raycaster = new Raycaster();
     const strikeWorld = new Vector3(-1.32, 1.14, -1.21);
     const strikeLocal = new Vector3();
+    const strikeTip = new Vector3();
     const strikePos = new Vector3();
-    const readyPos = new Vector3();
     const offPos = new Vector3();
+    const riseC1 = new Vector3();
+    const riseC2 = new Vector3();
     const lightPos = new Vector3();
     const wickNow = new Vector3();
     const carryTarget = new Vector3();
     const carryStartTip = new Vector3();
+    const tipTarget = new Vector3();
+    const tipA = new Vector3();
+    const tipB = new Vector3();
     const tangentLocal = new Vector3(1, 0, 0);
     const scratch = new Vector3();
     const solveScratch = new Vector3();
@@ -25406,14 +25550,18 @@
       findStrike();
       strikeLocal.copy(strikeWorld);
       camera2.worldToLocal(strikeLocal);
-      solveLeftClean(strikeLocal, STRIKE_ROT, STRIKE_SCALE);
+      strikeTip.copy(strikeLocal);
+      solveLeftClean(strikeTip, STRIKE_ROT, STRIKE_SCALE);
       strikePos.copy(left.position);
-      carryStartTip.copy(strikeLocal).add(PULLBACK);
-      readyPos.copy(strikePos).add(new Vector3(0.02, 0.07, 0.13));
+      carryStartTip.copy(strikeTip).addScaledVector(tangentLocal, 0.02);
+      carryStartTip.y += RECOIL_LIFT;
+      carryStartTip.z += RECOIL_PULL;
       offPos.copy(strikePos).add(new Vector3(0.02, -1.15, 0.22));
+      riseC1.copy(offPos).add(new Vector3(0.14, 0.55, 0.1));
+      riseC2.copy(strikePos).add(new Vector3(0.18, 0.18, 0.16));
       applyRightPose(RIGHT_CARRY_POSE);
       wickInCamera(wickNow);
-      carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+      carryTarget.set(wickNow.x, wickNow.y + 0.065, wickNow.z + 0.015);
       solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
       lightPos.copy(left.position);
       applyRightPose(RIGHT_POSE);
@@ -25488,69 +25636,174 @@
         const e = smoother(time / PAN_END);
         yaw = STRIKE_YAW * e;
         pitch = STRIKE_PITCH * e;
-      } else if (time < CARRY_START) {
+      } else if (time < CAMERA_RETURN_START) {
         yaw = STRIKE_YAW;
         pitch = STRIKE_PITCH;
-      } else if (time < CARRY_END) {
-        const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
+      } else if (time < CAMERA_RETURN_END) {
+        const e = smoother(
+          (time - CAMERA_RETURN_START) / (CAMERA_RETURN_END - CAMERA_RETURN_START)
+        );
         yaw = STRIKE_YAW * (1 - e);
         pitch = STRIKE_PITCH * (1 - e);
       } else {
         yaw = 0;
         pitch = 0;
       }
-      if (time > APPROACH_END && time < SCRAPE2_END) {
-        const k = 28e-4 * Math.sin(time * 54) * Math.sin(time * 37 + 1.1);
+      const sway = 16e-4 * Math.sin(time * 1.7 + 0.4) + 11e-4 * Math.sin(time * 2.9 + 1.7);
+      yaw += sway;
+      pitch += sway * 0.6;
+      if (time > CONTACT_AT && time < SCRAPE2_END) {
+        const k = 24e-4 * Math.sin(time * 54) * Math.sin(time * 37 + 1.1);
         yaw += k;
         pitch += k * 0.6;
+      }
+      if (time > IGNITE_AT) {
+        const kick = Math.exp(-(time - IGNITE_AT) * 7.5);
+        yaw += 45e-4 * kick * Math.sin((time - IGNITE_AT) * 46);
+        pitch += 3e-3 * kick * Math.sin((time - IGNITE_AT) * 38 + 0.7);
       }
       setView2(yaw, pitch);
       camera2.updateMatrixWorld(true);
       poseRight(time);
       wickInCamera(wickNow);
-      if (time < PAN_END) {
-        const e = smooth((time - 0.05) / (PAN_END - 0.15));
-        left.position.lerpVectors(offPos, readyPos, e);
-      } else if (time < APPROACH_END) {
-        const e = smooth((time - PAN_END) / (APPROACH_END - PAN_END));
-        left.position.lerpVectors(readyPos, strikePos, e);
-      } else if (time < SCRAPE1_END) {
-        const e = smooth((time - APPROACH_END) / (SCRAPE1_END - APPROACH_END));
-        left.position.copy(strikePos).addScaledVector(tangentLocal, SCRAPE_DISTANCE * e);
-      } else if (time < SCRAPE2_END) {
-        const e = smooth((time - SCRAPE1_END) / (SCRAPE2_END - SCRAPE1_END));
-        left.position.copy(strikePos).addScaledVector(tangentLocal, SCRAPE_DISTANCE * (1 - e));
-        if (time > IGNITE_AT)
-          ignite();
-      } else if (time < CARRY_START) {
-        const e = smooth((time - SCRAPE2_END) / (CARRY_START - SCRAPE2_END));
-        left.position.copy(strikePos).addScaledVector(PULLBACK, e);
-      } else if (time < CARRY_END) {
-        const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
-        carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
-        const t = scratch.copy(carryStartTip).lerp(carryTarget, e);
-        t.y += Math.sin(Math.PI * e) * 0.11;
-        t.x += Math.sin(Math.PI * e) * 0.03;
-        const rot = [
-          lerp2(STRIKE_ROT[0], LIGHT_ROT[0], e),
-          lerp2(STRIKE_ROT[1], LIGHT_ROT[1], e),
-          lerp2(STRIKE_ROT[2], LIGHT_ROT[2], e)
-        ];
-        solveLeftClean(t, rot, lerp2(STRIKE_SCALE, LIGHT_SCALE, e));
-      } else if (time < TRANSFER_END) {
-        carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
-        solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
-        lightPos.copy(left.position);
-      } else if (time < DROP_END) {
-        const e = smooth((time - TRANSFER_END) / (DROP_END - TRANSFER_END));
-        left.position.copy(lightPos);
-        left.position.x -= 0.8 * e;
-        left.position.y -= 1.45 * e;
-        left.position.z += 0.08 * e;
+      carryTarget.set(wickNow.x, wickNow.y + 0.065, wickNow.z + 0.015);
+      const recoilRot0 = lerp2(STRIKE_ROT[0], LIGHT_ROT[0], RECOIL_ROT_BLEND);
+      const recoilRot1 = lerp2(STRIKE_ROT[1], LIGHT_ROT[1], RECOIL_ROT_BLEND);
+      const recoilRot2 = lerp2(STRIKE_ROT[2], LIGHT_ROT[2], RECOIL_ROT_BLEND);
+      const recoilScale = lerp2(STRIKE_SCALE, LIGHT_SCALE, RECOIL_SCALE_BLEND);
+      if (time < CONTACT_AT) {
+        const u = smoother((time - 0.04) / (CONTACT_AT - 0.04));
+        bezier3(offPos, riseC1, riseC2, strikePos, u, left.position);
         left.rotation.set(
-          LIGHT_ROT[0] - 0.25 * e,
-          LIGHT_ROT[1],
-          LIGHT_ROT[2]
+          lerp2(APPROACH_ROT[0], STRIKE_ROT[0], u),
+          lerp2(APPROACH_ROT[1], STRIKE_ROT[1], u),
+          lerp2(APPROACH_ROT[2], STRIKE_ROT[2], u)
+        );
+        left.scale.setScalar(STRIKE_SCALE);
+      } else if (time < RESET_END) {
+        let d2;
+        let lift;
+        let pull;
+        let roll;
+        if (time < SCRAPE1_END) {
+          const u = smoother((time - CONTACT_AT) / (SCRAPE1_END - CONTACT_AT));
+          d2 = SCRAPE_DISTANCE * u;
+          lift = 0;
+          pull = 0;
+          roll = 0.04 * u;
+        } else {
+          const u = smoother((time - SCRAPE1_END) / (RESET_END - SCRAPE1_END));
+          d2 = SCRAPE_DISTANCE * (1 - u);
+          lift = RESET_LIFT * Math.sin(Math.PI * u);
+          pull = 0.018 * Math.sin(Math.PI * u);
+          roll = 0.04 * (1 - u);
+        }
+        tipTarget.copy(strikeTip).addScaledVector(tangentLocal, d2);
+        tipTarget.y += lift;
+        tipTarget.z += pull;
+        solveLeftClean(
+          tipTarget,
+          [STRIKE_ROT[0], STRIKE_ROT[1], STRIKE_ROT[2] + roll],
+          STRIKE_SCALE
+        );
+      } else if (time < CARRY_START) {
+        let d2;
+        let lift;
+        let pull;
+        let roll;
+        let rotBlend;
+        if (time < SCRAPE2_END) {
+          const u = easeIn((time - SCRAPE2_START) / (SCRAPE2_END - SCRAPE2_START));
+          d2 = SCRAPE2_DISTANCE * u;
+          lift = 0;
+          pull = 0;
+          roll = -0.03 * u;
+          rotBlend = 0;
+          if (time > IGNITE_AT)
+            ignite();
+        } else {
+          const u = smoother((time - SCRAPE2_END) / (CARRY_START - SCRAPE2_END));
+          d2 = lerp2(SCRAPE2_DISTANCE, 0.02, u);
+          lift = RECOIL_LIFT * u;
+          pull = RECOIL_PULL * u;
+          roll = -0.03 * (1 - u);
+          rotBlend = u;
+        }
+        tipTarget.copy(strikeTip).addScaledVector(tangentLocal, d2);
+        tipTarget.y += lift;
+        tipTarget.z += pull;
+        solveLeftClean(
+          tipTarget,
+          [
+            lerp2(STRIKE_ROT[0], recoilRot0, rotBlend),
+            lerp2(STRIKE_ROT[1], recoilRot1, rotBlend),
+            lerp2(STRIKE_ROT[2], recoilRot2, rotBlend) + roll
+          ],
+          lerp2(STRIKE_SCALE, recoilScale, rotBlend)
+        );
+      } else if (time < CARRY_END) {
+        const u = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
+        tipA.copy(carryStartTip);
+        tipA.x += 0.12;
+        tipA.y += 0.1;
+        tipA.z += 0.04;
+        tipB.copy(carryTarget);
+        tipB.x -= 0.18;
+        tipB.y += 0.18;
+        tipB.z += 0.1;
+        bezier3(carryStartTip, tipA, tipB, carryTarget, u, tipTarget);
+        tipTarget.x += Math.sin(Math.PI * u) * 0.012;
+        const ru = smoother(
+          (time - CARRY_START - 0.06) / (CARRY_END - CARRY_START - 0.06)
+        );
+        solveLeftClean(
+          tipTarget,
+          [
+            lerp2(recoilRot0, LIGHT_ROT[0], ru),
+            lerp2(recoilRot1, LIGHT_ROT[1], ru),
+            lerp2(recoilRot2, LIGHT_ROT[2], ru) + Math.sin(Math.PI * ru) * 0.045
+          ],
+          lerp2(recoilScale, LIGHT_SCALE, ru)
+        );
+      } else if (time < TRANSFER_END) {
+        const u = smoother((time - CARRY_END) / (TRANSFER_END - CARRY_END));
+        tipTarget.copy(carryTarget);
+        tipTarget.y += TRANSFER_DIP_Y * u;
+        tipTarget.z += TRANSFER_DIP_Z * u;
+        tipTarget.x += 22e-4 * Math.sin(time * 6.1);
+        tipTarget.y += 15e-4 * Math.sin(time * 4.7 + 0.9);
+        solveLeftClean(
+          tipTarget,
+          [
+            LIGHT_ROT[0] + 4e-3 * Math.sin(time * 4.2),
+            LIGHT_ROT[1],
+            LIGHT_ROT[2] + 6e-3 * Math.sin(time * 3.6 + 0.3)
+          ],
+          LIGHT_SCALE
+        );
+        lightPos.copy(left.position);
+      } else if (time < WITHDRAW_END) {
+        const u = smoother((time - TRANSFER_END) / (WITHDRAW_END - TRANSFER_END));
+        left.position.copy(lightPos);
+        left.position.x -= 0.1 * u;
+        left.position.y += 0.038 * u;
+        left.position.z += 0.056 * u;
+        left.rotation.set(
+          LIGHT_ROT[0] - 0.12 * u,
+          LIGHT_ROT[1] - 0.04 * u,
+          LIGHT_ROT[2] + 0.1 * u
+        );
+      } else if (time < DROP_END) {
+        const u = clamp01((time - WITHDRAW_END) / (DROP_END - WITHDRAW_END));
+        const e = u * u * (1.1 + 0.9 * u);
+        left.position.copy(lightPos);
+        left.position.x += -0.1 - 0.78 * e;
+        left.position.y += 0.038 - 1.55 * e;
+        left.position.z += 0.056 + 0.14 * e;
+        left.rotation.set(
+          LIGHT_ROT[0] - 0.12 - 0.33 * e,
+          LIGHT_ROT[1] - 0.04 - 0.16 * e,
+          LIGHT_ROT[2] + 0.1 + 0.45 * e
         );
       } else {
         dropLeft();

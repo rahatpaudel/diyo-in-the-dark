@@ -12,6 +12,10 @@
  * the match is carried over, the right hand tips the diya toward the middle
  * of the frame so the two meet halfway. The shader's wick sits 26% up its
  * quad, so `flame.setWickPosition` handles the offset whenever it is moved.
+ *
+ * The left forearm points nearly at the lens while the match is held over the
+ * diya, which exposes the open elbow end of the mesh. It is fitted with a dark
+ * cap so the view cannot pass through the arm into the rock behind it.
  */
 import * as THREE from './vendor/three.module.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
@@ -21,29 +25,29 @@ const LEFT_URL = HAND_DIR + 'hand_left.glb';
 const RIGHT_URL = HAND_DIR + 'hand_right.glb';
 
 // The right hand's fixed HUD pose. These values put the diya wick at roughly
-// (0.45, -0.35, -1.0) in camera space, which is the same bottom-right spot
-// the standalone flame used to occupy. It is tipped only slightly forward so
-// the bowl stays level enough to read as carrying oil.
+// (0.45, -0.30, -1.0) in camera space, which is the same bottom-right spot
+// the standalone flame used to occupy. The bowl is all but level: a degree of
+// forward tip keeps the rim readable without making it look poured.
 const RIGHT_POSE = {
   position: [0.43, -0.45, -0.13],
-  rotation: [-0.07, 0, 0],
+  rotation: [-0.02, 0, 0],
   scale: 0.8
 };
 
-// While the match is carried across, the right hand tips the diya toward the
+// While the match is carried across, the right hand turns the diya toward the
 // middle of the frame so the two hands meet halfway instead of the left arm
 // doing all the reaching. It returns to RIGHT_POSE once the wick is lit.
 const RIGHT_CARRY_POSE = {
-  position: [0.385, -0.435, -0.13],
-  rotation: [-0.04, 0.13, 0.07],
+  position: [0.345, -0.435, -0.13],
+  rotation: [-0.02, 0.24, 0.06],
   scale: 0.8
 };
 
 // When the right hand starts and finishes its inward tilt (seconds).
-const RIGHT_TILT_START = 2.8;
-const RIGHT_TILT_END = 4.3;
-const RIGHT_HOLD_END = 4.9;
-const RIGHT_RETURN_END = 5.65;
+const RIGHT_TILT_START = 2.55;
+const RIGHT_TILT_END = 4.05;
+const RIGHT_HOLD_END = 4.78;
+const RIGHT_RETURN_END = 5.55;
 
 // Camera look used for the strike. The rock ray is cast along this direction,
 // and the hand is solved to meet that exact point when the camera arrives.
@@ -62,6 +66,11 @@ const STRIKE_SCALE = 0.9;
 const LIGHT_ROT = [-0.06, -0.34, 0.04];
 const LIGHT_SCALE = 0.72;
 
+// The hand enters already rotating toward the stone, then settles into the
+// strike grip as it lands. Starting from the grip itself makes the entry read
+// like a prop being slid into place.
+const APPROACH_ROT = [0.3, -0.5, 0.1];
+
 const FLAME_MATCH_SCALE = 0.5;
 
 // How far in front of the camera the striking hand is allowed to reach. The
@@ -70,23 +79,45 @@ const FLAME_MATCH_SCALE = 0.5;
 // stretched across the shot. The rock placement is tuned to this reach later.
 const MAX_STRIKE_REACH = 1.00;
 
-// Where the match sits relative to the strike point just after ignition, and
-// a couple of reusable offsets so the per-frame timeline allocates nothing.
-const PULLBACK = new THREE.Vector3(0.01, 0.05, 0.11);
-const SCRAPE_DISTANCE = 0.07;
+// Scrape and lift distances, in camera-space metres. The first stroke is short
+// and the second one longer; both end with the match lifted clear of the stone
+// instead of being dragged backwards along it.
+const SCRAPE_DISTANCE = 0.1;
+const SCRAPE2_DISTANCE = 0.125;
+const RESET_LIFT = 0.05;
+const RECOIL_LIFT = 0.09;
+const RECOIL_PULL = 0.05;
+
+// The little press onto the wick at the end of the transfer. The withdraw and
+// drop start from this same offset so the hand does not pop when it lets go.
+const TRANSFER_DIP_Y = -0.012;
+const TRANSFER_DIP_Z = 0.006;
+
+// How much of the turn toward the carry grip happens during the recoil, before
+// the long arc to the diya starts.
+const RECOIL_ROT_BLEND = 0.22;
+const RECOIL_SCALE_BLEND = 0.14;
 
 // Timeline (seconds). Kept outside update() so the flame/spot ramps can share
-// the same ignition instant.
+// the same ignition instant. The camera starts back before the hand has quite
+// finished its recoil, and the diya begins tipping while the camera is still
+// returning, so the three motions overlap instead of ticking over in steps.
 const PAN_END = 1.25;
-const APPROACH_END = 1.55;
-const SCRAPE1_END = 1.85;
-const SCRAPE2_END = 2.3;
-const IGNITE_AT = SCRAPE1_END + 0.16;
-const CARRY_START = 2.8;
-const CARRY_END = 4.3;
-const TRANSFER_END = 4.7;
-const DROP_END = 5.35;
-const END = 5.8;
+const CONTACT_AT = 1.45;
+const SCRAPE1_END = 1.72;
+const RESET_END = 1.98;
+const SCRAPE2_START = 2.04;
+const SCRAPE2_END = 2.38;
+const IGNITE_AT = 2.24;
+const CARRY_START = 2.62;
+const CARRY_END = 4.2;
+const TRANSFER_END = 4.55;
+const WITHDRAW_END = 4.75;
+const DROP_END = 5.4;
+const END = 5.85;
+
+const CAMERA_RETURN_START = 2.38;
+const CAMERA_RETURN_END = 3.98;
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -98,6 +129,23 @@ const smoother = (t) => {
   t = clamp01(t);
   return t * t * t * (t * (t * 6 - 15) + 10);
 };
+const easeIn = (t) => {
+  t = clamp01(t);
+  return t * t * t;
+};
+
+/** Cubic Bezier evaluation into `out`. */
+function bezier3(a, b, c, d, t, out) {
+  const u = 1 - t;
+  const uu = u * u;
+  const tt = t * t;
+  return out
+    .copy(a)
+    .multiplyScalar(uu * u)
+    .addScaledVector(b, 3 * uu * t)
+    .addScaledVector(c, 3 * u * tt)
+    .addScaledVector(d, tt * t);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Loading                                                           */
@@ -106,6 +154,84 @@ function loadOne(loader, url) {
   return new Promise((resolve, reject) => {
     loader.load(url, resolve, undefined, reject);
   });
+}
+
+/**
+ * Close the open elbow end of the left forearm.
+ *
+ * The arm is a single open tube. When the match is held over the diya the
+ * forearm points almost straight at the camera, and the open end lets the
+ * scene show through as a flat, untextured-looking wedge. The arm renders both
+ * faces so its inner wall stays solid, and this dark disc closes the opening
+ * so it reads as the shadowed inside of a sleeve.
+ */
+function capOpenEnd(root) {
+  let arm = null;
+  let most = 0;
+  root.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return;
+    const count = o.geometry.attributes.position
+      ? o.geometry.attributes.position.count
+      : 0;
+    if (count > most) {
+      most = count;
+      arm = o;
+    }
+  });
+  if (!arm) return;
+
+  const geo = arm.geometry;
+  const pos = geo.attributes.position;
+  const index = geo.index;
+  const triangles = index ? index.count / 3 : pos.count / 3;
+  const edges = new Map();
+  const key = (a, b) => (a < b ? a + ':' + b : b + ':' + a);
+  for (let i = 0; i < triangles; i++) {
+    const a = index ? index.getX(i * 3) : i * 3;
+    const b = index ? index.getX(i * 3 + 1) : i * 3 + 1;
+    const c = index ? index.getX(i * 3 + 2) : i * 3 + 2;
+    const pairs = [
+      [a, b],
+      [b, c],
+      [c, a]
+    ];
+    for (const [u, v] of pairs) {
+      const k = key(u, v);
+      const edge = edges.get(k);
+      if (edge) edge.n += 1;
+      else edges.set(k, { a: u, b: v, n: 1 });
+    }
+  }
+
+  const loop = [];
+  for (const edge of edges.values()) {
+    if (edge.n === 1) loop.push(edge.a, edge.b);
+  }
+  if (loop.length < 8) return;
+
+  const mn = new THREE.Vector3(Infinity, Infinity, Infinity);
+  const mx = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  const p = new THREE.Vector3();
+  for (const i of loop) {
+    p.fromBufferAttribute(pos, i);
+    mn.min(p);
+    mx.max(p);
+  }
+
+  const cap = new THREE.Mesh(
+    new THREE.CircleGeometry(1, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x120905,
+      roughness: 1,
+      metalness: 0,
+      side: THREE.DoubleSide
+    })
+  );
+  cap.name = 'left_forearm_cap';
+  cap.position.set((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z - 0.003);
+  cap.scale.set((mx.x - mn.x) / 2, (mx.y - mn.y) / 2, 1);
+  cap.frustumCulled = false;
+  arm.add(cap);
 }
 
 function prepare(root, isLeft) {
@@ -119,9 +245,11 @@ function prepare(root, isLeft) {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       if (!m) continue;
-      // The GLB materials are double-sided, which shows the inside of the
-      // forearm as a translucent veil when the model is close to the camera.
-      m.side = THREE.FrontSide;
+      // The left forearm is an open tube that is often seen from the inside
+      // while the match is carried, so it must render both faces or the room
+      // shows through it. The dark elbow cap closes the cut end. The right
+      // hand never faces that way, so it stays front-sided.
+      m.side = isLeft ? THREE.DoubleSide : THREE.FrontSide;
       if (m.metalness !== undefined) m.metalness = 0;
       if (m.roughness !== undefined) m.roughness = Math.min(m.roughness, 0.82);
       if (m.emissive) {
@@ -141,6 +269,7 @@ export function loadHands() {
     .then(([left, right]) => {
       prepare(left.scene, true);
       prepare(right.scene, false);
+      capOpenEnd(left.scene);
       return { left: left.scene, right: right.scene };
     })
     .catch((err) => {
@@ -194,13 +323,18 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
   const raycaster = new THREE.Raycaster();
   const strikeWorld = new THREE.Vector3(-1.32, 1.14, -1.21);
   const strikeLocal = new THREE.Vector3();
+  const strikeTip = new THREE.Vector3();
   const strikePos = new THREE.Vector3();
-  const readyPos = new THREE.Vector3();
   const offPos = new THREE.Vector3();
+  const riseC1 = new THREE.Vector3();
+  const riseC2 = new THREE.Vector3();
   const lightPos = new THREE.Vector3();
   const wickNow = new THREE.Vector3();
   const carryTarget = new THREE.Vector3();
   const carryStartTip = new THREE.Vector3();
+  const tipTarget = new THREE.Vector3();
+  const tipA = new THREE.Vector3();
+  const tipB = new THREE.Vector3();
   const tangentLocal = new THREE.Vector3(1, 0, 0);
   const scratch = new THREE.Vector3();
   // solveLeftClean overwrites this while measuring the tip, so it must never
@@ -331,19 +465,27 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     strikeLocal.copy(strikeWorld);
     camera.worldToLocal(strikeLocal);
 
-    solveLeftClean(strikeLocal, STRIKE_ROT, STRIKE_SCALE);
+    strikeTip.copy(strikeLocal);
+    solveLeftClean(strikeTip, STRIKE_ROT, STRIKE_SCALE);
     strikePos.copy(left.position);
-    // The carry begins where the pull-back ends, not at the rock face.
-    carryStartTip.copy(strikeLocal).add(PULLBACK);
 
-    readyPos.copy(strikePos).add(new THREE.Vector3(0.02, 0.07, 0.13));
+    // The carry begins where the recoil leaves the match: just off the stone,
+    // a little backwards along the scrape, and lifted clear of the face.
+    carryStartTip.copy(strikeTip).addScaledVector(tangentLocal, 0.02);
+    carryStartTip.y += RECOIL_LIFT;
+    carryStartTip.z += RECOIL_PULL;
+
+    // The hand rises from below the frame in a shallow arc rather than on a
+    // straight line, then settles onto the stone as the camera arrives.
     offPos.copy(strikePos).add(new THREE.Vector3(0.02, -1.15, 0.22));
+    riseC1.copy(offPos).add(new THREE.Vector3(0.14, 0.55, 0.1));
+    riseC2.copy(strikePos).add(new THREE.Vector3(0.18, 0.18, 0.16));
 
     // The match arrives while the right hand is tipped inward, so solve the
     // carry pose against the wick where it will actually be.
     applyRightPose(RIGHT_CARRY_POSE);
     wickInCamera(wickNow);
-    carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+    carryTarget.set(wickNow.x, wickNow.y + 0.065, wickNow.z + 0.015);
     solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
     lightPos.copy(left.position);
 
@@ -419,15 +561,19 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     time += d;
 
     // Timeline (seconds)
-    //   0.00-1.25  camera turns to the rock, hand rises
-    //   1.25-1.55  hand moves onto the stone
-    //   1.55-2.30  two short scrapes, ignite on the second
-    //   2.30-2.80  match catches, hand pulls back
-    //   2.80-4.30  camera returns while the match is carried to the diya and
-    //              the right hand tips the diya inward
-    //   4.30-4.70  flame passes to the wick
-    //   4.70-5.35  left hand lowers out of frame
-    //   5.35-5.80  diya settles back to its HUD pose, hand over to gameplay
+    //   0.00-1.25  camera turns to the rock while the hand rises in an arc
+    //   1.25-1.45  hand settles onto the stone
+    //   1.45-1.72  first scrape
+    //   1.72-1.98  match lifts and swings back over the stone
+    //   1.98-2.38  second, longer scrape; the match catches on the way
+    //   2.38-2.62  recoil: match lifts clear as the wrist starts to turn
+    //   2.38-3.98  camera returns while the diya tips inward
+    //   2.62-4.20  match carried to the diya on an arc
+    //   4.20-4.55  flame passes to the wick
+    //   4.55-4.75  hand pulls away from the lamp
+    //   4.75-5.40  left hand falls out of frame
+    //   4.78-5.55  diya settles back to its HUD pose
+    //   5.85       gameplay
 
     // ---- camera ----
     let yaw = 0;
@@ -436,11 +582,13 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
       const e = smoother(time / PAN_END);
       yaw = STRIKE_YAW * e;
       pitch = STRIKE_PITCH * e;
-    } else if (time < CARRY_START) {
+    } else if (time < CAMERA_RETURN_START) {
       yaw = STRIKE_YAW;
       pitch = STRIKE_PITCH;
-    } else if (time < CARRY_END) {
-      const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
+    } else if (time < CAMERA_RETURN_END) {
+      const e = smoother(
+        (time - CAMERA_RETURN_START) / (CAMERA_RETURN_END - CAMERA_RETURN_START)
+      );
       yaw = STRIKE_YAW * (1 - e);
       pitch = STRIKE_PITCH * (1 - e);
     } else {
@@ -448,11 +596,23 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
       pitch = 0;
     }
 
-    // A tiny hand-held tremor while the match is scraping.
-    if (time > APPROACH_END && time < SCRAPE2_END) {
-      const k = 0.0028 * Math.sin(time * 54) * Math.sin(time * 37 + 1.1);
+    // A little hand-held drift keeps the held shot from looking locked off.
+    const sway =
+      0.0016 * Math.sin(time * 1.7 + 0.4) +
+      0.0011 * Math.sin(time * 2.9 + 1.7);
+    yaw += sway;
+    pitch += sway * 0.6;
+
+    // The match shivers against the stone; ignition adds a short kick.
+    if (time > CONTACT_AT && time < SCRAPE2_END) {
+      const k = 0.0024 * Math.sin(time * 54) * Math.sin(time * 37 + 1.1);
       yaw += k;
       pitch += k * 0.6;
+    }
+    if (time > IGNITE_AT) {
+      const kick = Math.exp(-(time - IGNITE_AT) * 7.5);
+      yaw += 0.0045 * kick * Math.sin((time - IGNITE_AT) * 46);
+      pitch += 0.003 * kick * Math.sin((time - IGNITE_AT) * 38 + 0.7);
     }
     setView(yaw, pitch);
     camera.updateMatrixWorld(true);
@@ -461,56 +621,160 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     // match travels over, then returns to its resting HUD pose.
     poseRight(time);
     wickInCamera(wickNow);
+    carryTarget.set(wickNow.x, wickNow.y + 0.065, wickNow.z + 0.015);
+
+    const recoilRot0 = lerp(STRIKE_ROT[0], LIGHT_ROT[0], RECOIL_ROT_BLEND);
+    const recoilRot1 = lerp(STRIKE_ROT[1], LIGHT_ROT[1], RECOIL_ROT_BLEND);
+    const recoilRot2 = lerp(STRIKE_ROT[2], LIGHT_ROT[2], RECOIL_ROT_BLEND);
+    const recoilScale = lerp(STRIKE_SCALE, LIGHT_SCALE, RECOIL_SCALE_BLEND);
 
     // ---- hand path ----
-    if (time < PAN_END) {
-      const e = smooth((time - 0.05) / (PAN_END - 0.15));
-      left.position.lerpVectors(offPos, readyPos, e);
-    } else if (time < APPROACH_END) {
-      const e = smooth((time - PAN_END) / (APPROACH_END - PAN_END));
-      left.position.lerpVectors(readyPos, strikePos, e);
-    } else if (time < SCRAPE1_END) {
-      const e = smooth((time - APPROACH_END) / (SCRAPE1_END - APPROACH_END));
-      left.position.copy(strikePos).addScaledVector(tangentLocal, SCRAPE_DISTANCE * e);
-    } else if (time < SCRAPE2_END) {
-      const e = smooth((time - SCRAPE1_END) / (SCRAPE2_END - SCRAPE1_END));
-      left.position.copy(strikePos).addScaledVector(tangentLocal, SCRAPE_DISTANCE * (1 - e));
-      if (time > IGNITE_AT) ignite();
-    } else if (time < CARRY_START) {
-      const e = smooth((time - SCRAPE2_END) / (CARRY_START - SCRAPE2_END));
-      left.position.copy(strikePos).addScaledVector(PULLBACK, e);
-    } else if (time < CARRY_END) {
-      // Interpolate the visible tip along a small arc, re-solving the arm so
-      // the flame travels smoothly to the wick even as the camera turns back
-      // and the right hand tips the diya toward the middle.
-      const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
-      carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
-      const t = scratch.copy(carryStartTip).lerp(carryTarget, e);
-      t.y += Math.sin(Math.PI * e) * 0.11;
-      t.x += Math.sin(Math.PI * e) * 0.03;
-      const rot = [
-        lerp(STRIKE_ROT[0], LIGHT_ROT[0], e),
-        lerp(STRIKE_ROT[1], LIGHT_ROT[1], e),
-        lerp(STRIKE_ROT[2], LIGHT_ROT[2], e)
-      ];
-      solveLeftClean(t, rot, lerp(STRIKE_SCALE, LIGHT_SCALE, e));
-    } else if (time < TRANSFER_END) {
-      carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
-      solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
-      // Remember where the match ended up: the drop starts from here.
-      lightPos.copy(left.position);
-    } else if (time < DROP_END) {
-      const e = smooth((time - TRANSFER_END) / (DROP_END - TRANSFER_END));
-      // Drift left while sinking so the hand doesn't just vanish behind the
-      // diya: it visibly leaves the lamp and falls out of the bottom corner.
-      left.position.copy(lightPos);
-      left.position.x -= 0.8 * e;
-      left.position.y -= 1.45 * e;
-      left.position.z += 0.08 * e;
+    if (time < CONTACT_AT) {
+      // Rise and settle in one arc, already turning into the strike grip.
+      const u = smoother((time - 0.04) / (CONTACT_AT - 0.04));
+      bezier3(offPos, riseC1, riseC2, strikePos, u, left.position);
       left.rotation.set(
-        LIGHT_ROT[0] - 0.25 * e,
-        LIGHT_ROT[1],
-        LIGHT_ROT[2]
+        lerp(APPROACH_ROT[0], STRIKE_ROT[0], u),
+        lerp(APPROACH_ROT[1], STRIKE_ROT[1], u),
+        lerp(APPROACH_ROT[2], STRIKE_ROT[2], u)
+      );
+      left.scale.setScalar(STRIKE_SCALE);
+    } else if (time < RESET_END) {
+      // First stroke: drag along the stone, then lift and swing back above it
+      // rather than retracing the same line backwards.
+      let d;
+      let lift;
+      let pull;
+      let roll;
+      if (time < SCRAPE1_END) {
+        const u = smoother((time - CONTACT_AT) / (SCRAPE1_END - CONTACT_AT));
+        d = SCRAPE_DISTANCE * u;
+        lift = 0;
+        pull = 0;
+        roll = 0.04 * u;
+      } else {
+        const u = smoother((time - SCRAPE1_END) / (RESET_END - SCRAPE1_END));
+        d = SCRAPE_DISTANCE * (1 - u);
+        lift = RESET_LIFT * Math.sin(Math.PI * u);
+        pull = 0.018 * Math.sin(Math.PI * u);
+        roll = 0.04 * (1 - u);
+      }
+      tipTarget.copy(strikeTip).addScaledVector(tangentLocal, d);
+      tipTarget.y += lift;
+      tipTarget.z += pull;
+      solveLeftClean(
+        tipTarget,
+        [STRIKE_ROT[0], STRIKE_ROT[1], STRIKE_ROT[2] + roll],
+        STRIKE_SCALE
+      );
+    } else if (time < CARRY_START) {
+      // Second stroke. It starts slowly, accelerates as the match bites, then
+      // lifts away; the wrist begins its turn before the long carry starts.
+      let d;
+      let lift;
+      let pull;
+      let roll;
+      let rotBlend;
+      if (time < SCRAPE2_END) {
+        const u = easeIn((time - SCRAPE2_START) / (SCRAPE2_END - SCRAPE2_START));
+        d = SCRAPE2_DISTANCE * u;
+        lift = 0;
+        pull = 0;
+        roll = -0.03 * u;
+        rotBlend = 0;
+        if (time > IGNITE_AT) ignite();
+      } else {
+        const u = smoother((time - SCRAPE2_END) / (CARRY_START - SCRAPE2_END));
+        d = lerp(SCRAPE2_DISTANCE, 0.02, u);
+        lift = RECOIL_LIFT * u;
+        pull = RECOIL_PULL * u;
+        roll = -0.03 * (1 - u);
+        rotBlend = u;
+      }
+      tipTarget.copy(strikeTip).addScaledVector(tangentLocal, d);
+      tipTarget.y += lift;
+      tipTarget.z += pull;
+      solveLeftClean(
+        tipTarget,
+        [
+          lerp(STRIKE_ROT[0], recoilRot0, rotBlend),
+          lerp(STRIKE_ROT[1], recoilRot1, rotBlend),
+          lerp(STRIKE_ROT[2], recoilRot2, rotBlend) + roll
+        ],
+        lerp(STRIKE_SCALE, recoilScale, rotBlend)
+      );
+    } else if (time < CARRY_END) {
+      // Carry on a lifted arc. The wrist turns a touch behind the arm so the
+      // hand does not move like one rigid piece.
+      const u = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
+      tipA.copy(carryStartTip);
+      tipA.x += 0.12;
+      tipA.y += 0.1;
+      tipA.z += 0.04;
+      tipB.copy(carryTarget);
+      tipB.x -= 0.18;
+      tipB.y += 0.18;
+      tipB.z += 0.1;
+      bezier3(carryStartTip, tipA, tipB, carryTarget, u, tipTarget);
+      tipTarget.x += Math.sin(Math.PI * u) * 0.012;
+      const ru = smoother(
+        (time - CARRY_START - 0.06) / (CARRY_END - CARRY_START - 0.06)
+      );
+      solveLeftClean(
+        tipTarget,
+        [
+          lerp(recoilRot0, LIGHT_ROT[0], ru),
+          lerp(recoilRot1, LIGHT_ROT[1], ru),
+          lerp(recoilRot2, LIGHT_ROT[2], ru) +
+            Math.sin(Math.PI * ru) * 0.045
+        ],
+        lerp(recoilScale, LIGHT_SCALE, ru)
+      );
+    } else if (time < TRANSFER_END) {
+      // Hold the match at the wick. A small press and a breath of drift keep
+      // the hand alive while the flame settles into the diya.
+      const u = smoother((time - CARRY_END) / (TRANSFER_END - CARRY_END));
+      tipTarget.copy(carryTarget);
+      tipTarget.y += TRANSFER_DIP_Y * u;
+      tipTarget.z += TRANSFER_DIP_Z * u;
+      tipTarget.x += 0.0022 * Math.sin(time * 6.1);
+      tipTarget.y += 0.0015 * Math.sin(time * 4.7 + 0.9);
+      solveLeftClean(
+        tipTarget,
+        [
+          LIGHT_ROT[0] + 0.004 * Math.sin(time * 4.2),
+          LIGHT_ROT[1],
+          LIGHT_ROT[2] + 0.006 * Math.sin(time * 3.6 + 0.3)
+        ],
+        LIGHT_SCALE
+      );
+      // The withdraw and drop start from exactly where the hand let go.
+      lightPos.copy(left.position);
+    } else if (time < WITHDRAW_END) {
+      // Ease the match back out of the lamp before the arm falls.
+      const u = smoother((time - TRANSFER_END) / (WITHDRAW_END - TRANSFER_END));
+      left.position.copy(lightPos);
+      left.position.x -= 0.1 * u;
+      left.position.y += 0.038 * u;
+      left.position.z += 0.056 * u;
+      left.rotation.set(
+        LIGHT_ROT[0] - 0.12 * u,
+        LIGHT_ROT[1] - 0.04 * u,
+        LIGHT_ROT[2] + 0.1 * u
+      );
+    } else if (time < DROP_END) {
+      // Let the arm fall under gravity, turning as it goes so the open end of
+      // the forearm is carried out of the bottom corner.
+      const u = clamp01((time - WITHDRAW_END) / (DROP_END - WITHDRAW_END));
+      const e = u * u * (1.1 + 0.9 * u);
+      left.position.copy(lightPos);
+      left.position.x += -0.1 - 0.78 * e;
+      left.position.y += 0.038 - 1.55 * e;
+      left.position.z += 0.056 + 0.14 * e;
+      left.rotation.set(
+        LIGHT_ROT[0] - 0.12 - 0.33 * e,
+        LIGHT_ROT[1] - 0.04 - 0.16 * e,
+        LIGHT_ROT[2] + 0.1 + 0.45 * e
       );
     } else {
       dropLeft();
