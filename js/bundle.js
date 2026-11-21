@@ -25003,16 +25003,16 @@
 
   // js/path.js
   var PATH_HALF_WIDTH = 1.25;
-  var HOUSE_POINT = { x: 0, z: -98 };
+  var HOUSE_POINT = { x: 0, z: -140 };
   var SAMPLE_STEP = 0.6;
   var CELL = 4;
   var PATH_MARGIN = 0.35;
   var PATH_DECISIONS = [
-    { id: "q1", x: 1.5, z: -16, riddle: 1, choices: 2 },
-    { id: "q2", x: -1.5, z: -32, riddle: 2, choices: 2 },
-    { id: "q3", x: 2, z: -48, riddle: 3, choices: 2 },
-    { id: "q4", x: -2, z: -64, riddle: 4, choices: 3 },
-    { id: "q5", x: 1, z: -80, riddle: 5, choices: 3 }
+    { id: "q1", x: 1.5, z: -24, riddle: 1, choices: 2 },
+    { id: "q2", x: -1.5, z: -48, riddle: 2, choices: 2 },
+    { id: "q3", x: 2, z: -72, riddle: 3, choices: 2 },
+    { id: "q4", x: -2, z: -96, riddle: 4, choices: 3 },
+    { id: "q5", x: 1, z: -120, riddle: 5, choices: 3 }
   ];
   var BRANCHES = [
     {
@@ -25020,129 +25020,129 @@
       kind: "correct",
       points: [
         [0, 0],
-        [0.8, -6],
-        [-0.5, -11],
-        [1.5, -16]
+        [1, -8],
+        [-1, -15],
+        [1.5, -24]
       ]
     },
     {
       id: "q1-correct",
       kind: "correct",
       points: [
-        [1.5, -16],
-        [0.5, -23],
-        [-2, -28],
-        [-1.5, -32]
+        [1.5, -24],
+        [0, -34],
+        [-2.5, -41],
+        [-1.5, -48]
       ]
     },
     {
       id: "q1-decoy",
       kind: "decoy",
       points: [
-        [1.5, -16],
-        [6, -18],
-        [10, -21],
-        [12, -25]
+        [1.5, -24],
+        [6, -27],
+        [10, -31],
+        [13, -36]
       ]
     },
     {
       id: "q2-correct",
       kind: "correct",
       points: [
-        [-1.5, -32],
-        [-0.5, -39],
-        [2.5, -44],
-        [2, -48]
+        [-1.5, -48],
+        [-0.5, -58],
+        [2.5, -66],
+        [2, -72]
       ]
     },
     {
       id: "q2-decoy",
       kind: "decoy",
       points: [
-        [-1.5, -32],
-        [-6, -33],
-        [-10, -35],
-        [-13, -39]
+        [-1.5, -48],
+        [-6, -50],
+        [-10, -54],
+        [-13, -60]
       ]
     },
     {
       id: "q3-correct",
       kind: "correct",
       points: [
-        [2, -48],
-        [0.5, -55],
-        [-2.5, -60],
-        [-2, -64]
+        [2, -72],
+        [0.5, -82],
+        [-2.5, -89],
+        [-2, -96]
       ]
     },
     {
       id: "q3-decoy",
       kind: "decoy",
       points: [
-        [2, -48],
-        [7, -50],
-        [11, -53],
-        [13, -57]
+        [2, -72],
+        [7, -75],
+        [11, -79],
+        [14, -84]
       ]
     },
     {
       id: "q4-correct",
       kind: "correct",
       points: [
-        [-2, -64],
-        [0, -71],
-        [-1, -76],
-        [1, -80]
+        [-2, -96],
+        [0, -106],
+        [-1, -113],
+        [1, -120]
       ]
     },
     {
       id: "q4-east",
       kind: "decoy",
       points: [
-        [-2, -64],
-        [3, -65],
-        [7, -67],
-        [10, -70]
+        [-2, -96],
+        [3, -98],
+        [7, -101],
+        [10, -106]
       ]
     },
     {
       id: "q4-west",
       kind: "decoy",
       points: [
-        [-2, -64],
-        [-7, -65],
-        [-11, -68],
-        [-13, -72]
+        [-2, -96],
+        [-7, -98],
+        [-11, -102],
+        [-14, -108]
       ]
     },
     {
       id: "q5-correct",
       kind: "correct",
       points: [
-        [1, -80],
-        [0.5, -85],
-        [0, -90],
-        [0, -93.5]
+        [1, -120],
+        [8, -124],
+        [4, -131],
+        [0, -135.5]
       ]
     },
     {
       id: "q5-west",
       kind: "decoy",
       points: [
-        [1, -80],
-        [-4, -82],
-        [-7, -85],
-        [-9, -89]
+        [1, -120],
+        [-5, -123],
+        [-9, -127],
+        [-12, -133]
       ]
     },
     {
       id: "q5-east",
       kind: "decoy",
       points: [
-        [1, -80],
-        [6, -81],
-        [10, -83],
-        [13, -86]
+        [1, -120],
+        [7, -122],
+        [11, -126],
+        [14, -131]
       ]
     }
   ];
@@ -25250,7 +25250,7 @@
     list.push({ x, z, rot, scale });
   };
   function nearSpawnOrHouse(x, z) {
-    if (Math.hypot(x, z) < 4.5)
+    if (Math.hypot(x, z) < 10.5)
       return true;
     if (Math.hypot(x - HOUSE_POINT.x, z - HOUSE_POINT.z) < 8.5)
       return true;
@@ -25260,8 +25260,10 @@
     const isDecoy = branch.kind === "decoy";
     const steps = [
       { step: 2.4, side: 0, pool: EDGE_TREES, lo: 0.42, hi: 0.68 },
-      { step: 3.6, side: 1, pool: PATH_TREES, lo: 0.65, hi: 0.95 },
-      { step: 5.4, side: 2, pool: PATH_TREES, lo: 0.85, hi: 1.25 }
+      { step: 3.4, side: 1, pool: PATH_TREES, lo: 0.65, hi: 0.95 },
+      { step: 5, side: 2, pool: PATH_TREES, lo: 0.85, hi: 1.2 },
+      { step: 7, side: 3, pool: PATH_TREES, lo: 1, hi: 1.4 },
+      { step: 9.5, side: 4, pool: PATH_TREES, lo: 1, hi: 1.5 }
     ];
     for (const row of steps) {
       const indexStep = Math.max(1, Math.round(row.step / SAMPLE_STEP));
@@ -25284,7 +25286,7 @@
             continue;
           const variant = row.pool[(key + (side > 0 ? 3 : 0)) % row.pool.length];
           const scale = row.lo + hash(key, side, 911) * (row.hi - row.lo);
-          const extra = row.side === 0 ? 0.55 : row.side === 1 ? 0.9 : 2.1;
+          const extra = [0.9, 1.4, 2.8, 4.8, 7][row.side];
           const offset = variant.radius * scale + PATH_HALF_WIDTH + extra;
           const nx = s.x - dz * side * offset;
           const nz = s.z + dx * side * offset;
@@ -25303,16 +25305,6 @@
         }
       }
     }
-  }
-  for (let i = 0; i < 8; i++) {
-    const a = i / 8 * Math.PI * 2 + 0.4;
-    const r = 5.5 + i % 3 * 1.6;
-    const x = -2.8 + Math.cos(a) * r;
-    const z = -1.4 + Math.sin(a) * r;
-    const v = PATH_TREES[i % PATH_TREES.length];
-    if (Math.hypot(x, z) < 4.2)
-      continue;
-    addExtra(v.name, x, z, hash(i, 7, 41) * Math.PI * 2, 0.72 + i % 4 * 0.14);
   }
   for (const branch of PATH_BRANCHES) {
     if (branch.kind !== "decoy")
@@ -25344,8 +25336,8 @@
   }
 
   // js/terrain.js
-  var SIZE = 220;
-  var SEGMENTS = 224;
+  var SIZE = 320;
+  var SEGMENTS = 288;
   var HALF = SIZE / 2;
   function hash2(ix, iy, seed) {
     let h = ix * 374761393 + iy * 668265263 + seed * 1442695041;
@@ -25546,7 +25538,7 @@
         pctx.stroke();
       }
     }
-    const dirtSize = 512;
+    const dirtSize = 1024;
     const dAlbedoCanvas = document.createElement("canvas");
     dAlbedoCanvas.width = dAlbedoCanvas.height = dirtSize;
     const dNormalCanvas = document.createElement("canvas");
@@ -25630,7 +25622,7 @@
     const pathMap = new CanvasTexture(dAlbedoCanvas);
     pathMap.colorSpace = SRGBColorSpace;
     pathMap.wrapS = pathMap.wrapT = RepeatWrapping;
-    pathMap.repeat.set(16, 16);
+    pathMap.repeat.set(24, 24);
     pathMap.anisotropy = maxAniso;
     pathMap.needsUpdate = true;
     const pathNormal = new CanvasTexture(dNormalCanvas);
@@ -25726,8 +25718,6 @@
     const textures = createGroundTextures(renderer2);
     const material = new MeshStandardMaterial({
       map: textures.albedo,
-      normalMap: textures.normal,
-      normalScale: new Vector2(0.06, 0.06),
       vertexColors: true,
       roughness: 0.95,
       metalness: 0,
@@ -25740,8 +25730,6 @@
     scene2.add(mesh);
     const pathMaterial = new MeshStandardMaterial({
       map: textures.pathMap,
-      normalMap: textures.pathNormal,
-      normalScale: new Vector2(0.04, 0.04),
       alphaMap: textures.pathAlpha,
       transparent: true,
       depthWrite: false,
@@ -25755,7 +25743,7 @@
     const pathMesh = new Mesh(geo, pathMaterial);
     pathMesh.name = "Path";
     pathMesh.position.y = 0.012;
-    pathMesh.receiveShadow = true;
+    pathMesh.receiveShadow = false;
     pathMesh.castShadow = false;
     pathMesh.renderOrder = 2;
     scene2.add(pathMesh);
@@ -27203,10 +27191,12 @@
     renderer.shadowMap.type = PCFSoftShadowMap;
     clock = new Clock();
     scene.add(camera);
-    light = new SpotLight(16751164, 40, 35, Math.PI / 5, 0.5, 1.2);
+    light = new SpotLight(16751164, 44, 14, Math.PI / 5, 0.5, 1.4);
     light.castShadow = true;
     light.shadow.mapSize.width = 1024;
     light.shadow.mapSize.height = 1024;
+    light.shadow.bias = -4e-4;
+    light.shadow.normalBias = 0.02;
     light.position.set(0, -0.3, -0.4);
     light.target.position.set(0, -0.7, -6);
     camera.add(light);
@@ -27364,7 +27354,7 @@
     const wallMat = new MeshStandardMaterial({ color: 7755583, roughness: 0.9 });
     const woodMat = new MeshStandardMaterial({ color: 4860952, roughness: 0.85 });
     const roofMat = new MeshStandardMaterial({ color: 2626831, roughness: 0.95 });
-    const glowMat = new MeshBasicMaterial({ color: 16761450, fog: false });
+    const glowMat = new MeshBasicMaterial({ color: 16761450 });
     const plinth = new Mesh(new BoxGeometry(7.6, 0.6, 7.6), stoneMat);
     plinth.position.y = 0.3;
     plinth.castShadow = true;
@@ -27403,7 +27393,7 @@
       post.castShadow = true;
       house.add(post);
     }
-    const winMat = new MeshBasicMaterial({ color: 16761450, fog: false });
+    const winMat = new MeshBasicMaterial({ color: 16761450 });
     const addWindow = (x, y, z, ry) => {
       const w = new Mesh(new PlaneGeometry(1.1, 1.1), winMat);
       w.position.set(x, y, z);

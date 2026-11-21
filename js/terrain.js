@@ -12,8 +12,8 @@ import {
   HOUSE_POINT
 } from './path.js';
 
-const SIZE = 220;
-const SEGMENTS = 224;
+const SIZE = 320;
+const SEGMENTS = 288;
 const HALF = SIZE / 2;
 
 /* ------------------------------------------------------------------ */
@@ -271,7 +271,7 @@ function createGroundTextures(renderer) {
   }
 
   // Dedicated warm dirt tile for the path overlay.
-  const dirtSize = 512;
+  const dirtSize = 1024;
   const dAlbedoCanvas = document.createElement('canvas');
   dAlbedoCanvas.width = dAlbedoCanvas.height = dirtSize;
   const dNormalCanvas = document.createElement('canvas');
@@ -368,7 +368,7 @@ function createGroundTextures(renderer) {
   const pathMap = new THREE.CanvasTexture(dAlbedoCanvas);
   pathMap.colorSpace = THREE.SRGBColorSpace;
   pathMap.wrapS = pathMap.wrapT = THREE.RepeatWrapping;
-  pathMap.repeat.set(16, 16);
+  pathMap.repeat.set(24, 24);
   pathMap.anisotropy = maxAniso;
   pathMap.needsUpdate = true;
 
@@ -484,8 +484,6 @@ export function buildTerrain(scene, renderer) {
   const textures = createGroundTextures(renderer);
   const material = new THREE.MeshStandardMaterial({
     map: textures.albedo,
-    normalMap: textures.normal,
-    normalScale: new THREE.Vector2(0.06, 0.06),
     vertexColors: true,
     roughness: 0.95,
     metalness: 0,
@@ -503,8 +501,6 @@ export function buildTerrain(scene, renderer) {
   // and it takes the diya's spotlight and tree shadows like the ground does.
   const pathMaterial = new THREE.MeshStandardMaterial({
     map: textures.pathMap,
-    normalMap: textures.pathNormal,
-    normalScale: new THREE.Vector2(0.04, 0.04),
     alphaMap: textures.pathAlpha,
     transparent: true,
     depthWrite: false,
@@ -518,7 +514,7 @@ export function buildTerrain(scene, renderer) {
   const pathMesh = new THREE.Mesh(geo, pathMaterial);
   pathMesh.name = 'Path';
   pathMesh.position.y = 0.012;
-  pathMesh.receiveShadow = true;
+  pathMesh.receiveShadow = false;
   pathMesh.castShadow = false;
   pathMesh.renderOrder = 2;
   scene.add(pathMesh);

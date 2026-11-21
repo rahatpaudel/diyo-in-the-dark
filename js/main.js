@@ -134,10 +134,12 @@ function init() {
   // Attached to the camera so it truly emits from the player.
   // Camera looks down -Z in local space, so the light and its target are
   // placed toward -Z (in front of the player).
-  light = new THREE.SpotLight(0xff9a3c, 40, 35, Math.PI / 5, 0.5, 1.2);
+  light = new THREE.SpotLight(0xff9a3c, 44, 14, Math.PI / 5, 0.5, 1.4);
   light.castShadow = true;
   light.shadow.mapSize.width = 1024;
   light.shadow.mapSize.height = 1024;
+  light.shadow.bias = -0.0004;
+  light.shadow.normalBias = 0.02;
   // Centered below eye level so the lit pool sits in the middle of the view
   // rather than being pushed to the right by the hand pose.
   light.position.set(0, -0.3, -0.4);
@@ -374,7 +376,7 @@ function buildHouse() {
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x76573f, roughness: 0.9 });
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.85 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x28150f, roughness: 0.95 });
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffc26a, fog: false });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffc26a });
 
   const plinth = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.6, 7.6), stoneMat);
   plinth.position.y = 0.3;
@@ -424,7 +426,7 @@ function buildHouse() {
   }
 
   // Warm windows, plus side windows so the house glows from other angles.
-  const winMat = new THREE.MeshBasicMaterial({ color: 0xffc26a, fog: false });
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xffc26a });
   const addWindow = (x, y, z, ry) => {
     const w = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), winMat);
     w.position.set(x, y, z);
