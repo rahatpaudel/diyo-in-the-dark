@@ -12,9 +12,16 @@ import {
   HOUSE_POINT
 } from './path.js';
 
-const SIZE = 320;
-const SEGMENTS = 288;
+const SIZE = 320; // legacy extent for the unused route mask
 const HALF = SIZE / 2;
+const MIN_X = -36;
+const MAX_X = 36;
+const MIN_Z = -152;
+const MAX_Z = 6;
+const WIDTH = MAX_X - MIN_X;
+const DEPTH = MAX_Z - MIN_Z;
+const SEG_X = 84;
+const SEG_Z = 190;
 
 /* ------------------------------------------------------------------ */
 /*  Deterministic noise                                               */
@@ -389,13 +396,13 @@ let heightGrid = null;
 
 function gridHeightAt(x, z) {
   if (!heightGrid) return finalHeight(x, z);
-  const gx = clamp01((x + HALF) / SIZE) * SEGMENTS;
-  const gz = clamp01((z + HALF) / SIZE) * SEGMENTS;
-  const ix = Math.min(SEGMENTS - 1, Math.floor(gx));
-  const iz = Math.min(SEGMENTS - 1, Math.floor(gz));
+  const gx = clamp01((x - MIN_X) / WIDTH) * SEG_X;
+  const gz = clamp01((z - MIN_Z) / DEPTH) * SEG_Z;
+  const ix = Math.min(SEG_X - 1, Math.floor(gx));
+  const iz = Math.min(SEG_Z - 1, Math.floor(gz));
   const fx = gx - ix;
   const fz = gz - iz;
-  const n = SEGMENTS + 1;
+  const n = SEG_X + 1;
   const h00 = heightGrid[iz * n + ix];
   const h10 = heightGrid[iz * n + ix + 1];
   const h01 = heightGrid[(iz + 1) * n + ix];
@@ -409,35 +416,36 @@ export function heightAt(x, z) {
 }
 
 export function buildTerrain(scene, renderer) {
-  const n = SEGMENTS + 1;
-  const count = n * n;
+  const nX = SEG_X + 1;
+  const nZ = SEG_Z + 1;
+  const count = nX * nZ;
   heightGrid = new Float32Array(count);
 
   const positions = new Float32Array(count * 3);
   const uvs = new Float32Array(count * 2);
 
-  for (let iz = 0; iz < n; iz++) {
-    const z = -HALF + (iz / SEGMENTS) * SIZE;
-    for (let ix = 0; ix < n; ix++) {
-      const x = -HALF + (ix / SEGMENTS) * SIZE;
+  for (let iz = 0; iz < nZ; iz++) {
+    const z = MIN_Z + (iz / SEG_Z) * DEPTH;
+    for (let ix = 0; ix < nX; ix++) {
+      const x = MIN_X + (ix / SEG_X) * WIDTH;
       const h = finalHeight(x, z);
-      const i = iz * n + ix;
+      const i = iz * nX + ix;
       heightGrid[i] = h;
       positions[i * 3] = x;
       positions[i * 3 + 1] = h;
       positions[i * 3 + 2] = z;
-      uvs[i * 2] = ix / SEGMENTS;
-      uvs[i * 2 + 1] = iz / SEGMENTS;
+      uvs[i * 2] = ix / SEG_X;
+      uvs[i * 2 + 1] = iz / SEG_Z;
     }
   }
 
-  const indices = new Uint32Array(SEGMENTS * SEGMENTS * 6);
+  const indices = new Uint32Array(SEG_X * SEG_Z * 6);
   let p = 0;
-  for (let iz = 0; iz < SEGMENTS; iz++) {
-    for (let ix = 0; ix < SEGMENTS; ix++) {
-      const a = iz * n + ix;
+  for (let iz = 0; iz < SEG_Z; iz++) {
+    for (let ix = 0; ix < SEG_X; ix++) {
+      const a = iz * nX + ix;
       const b = a + 1;
-      const c = a + n;
+      const c = a + nX;
       const d = c + 1;
       indices[p++] = a;
       indices[p++] = c;
@@ -482,6 +490,8 @@ export function buildTerrain(scene, renderer) {
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const textures = createGroundTextures(renderer);
+  textures.albedo.repeat.set(WIDTH / 8, DEPTH / 8);
+  textures.albedo.needsUpdate = true;
   const material = new THREE.MeshStandardMaterial({
     map: textures.albedo,
     vertexColors: true,

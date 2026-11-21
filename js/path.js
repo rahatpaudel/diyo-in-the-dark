@@ -290,7 +290,7 @@ const addExtra = (name, x, z, rot, scale) => {
 };
 
 function nearSpawnOrHouse(x, z) {
-  if (Math.hypot(x, z) < 10.5) return true;
+  if (Math.hypot(x, z) < 2.0) return true;
   if (Math.hypot(x - HOUSE_POINT.x, z - HOUSE_POINT.z) < 8.5) return true;
   return false;
 }
@@ -302,7 +302,10 @@ for (const branch of PATH_BRANCHES) {
     { step: 3.4, side: 1, pool: PATH_TREES, lo: 0.65, hi: 0.95 },
     { step: 5.0, side: 2, pool: PATH_TREES, lo: 0.85, hi: 1.2 },
     { step: 7.0, side: 3, pool: PATH_TREES, lo: 1.0, hi: 1.4 },
-    { step: 9.5, side: 4, pool: PATH_TREES, lo: 1.0, hi: 1.5 }
+    { step: 9.5, side: 4, pool: PATH_TREES, lo: 1.0, hi: 1.5 },
+    { step: 12.0, side: 5, pool: PATH_TREES, lo: 1.0, hi: 1.5 },
+    { step: 14.5, side: 6, pool: PATH_TREES, lo: 1.0, hi: 1.5 },
+    { step: 17.0, side: 7, pool: PATH_TREES, lo: 1.0, hi: 1.5 }
   ];
 
   for (const row of steps) {
@@ -326,7 +329,7 @@ for (const branch of PATH_BRANCHES) {
 
         const variant = row.pool[(key + (side > 0 ? 3 : 0)) % row.pool.length];
         const scale = row.lo + hash(key, side, 911) * (row.hi - row.lo);
-        const extra = [0.9, 1.4, 2.8, 4.8, 7.0][row.side];
+        const extra = [0.9, 1.4, 2.8, 4.8, 7.0, 9.0, 11.0, 13.0][row.side];
         const offset = variant.radius * scale + PATH_HALF_WIDTH + extra;
         const nx = s.x - dz * side * offset;
         const nz = s.z + dx * side * offset;

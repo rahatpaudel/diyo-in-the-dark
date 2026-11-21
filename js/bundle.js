@@ -25250,7 +25250,7 @@
     list.push({ x, z, rot, scale });
   };
   function nearSpawnOrHouse(x, z) {
-    if (Math.hypot(x, z) < 10.5)
+    if (Math.hypot(x, z) < 2)
       return true;
     if (Math.hypot(x - HOUSE_POINT.x, z - HOUSE_POINT.z) < 8.5)
       return true;
@@ -25263,7 +25263,10 @@
       { step: 3.4, side: 1, pool: PATH_TREES, lo: 0.65, hi: 0.95 },
       { step: 5, side: 2, pool: PATH_TREES, lo: 0.85, hi: 1.2 },
       { step: 7, side: 3, pool: PATH_TREES, lo: 1, hi: 1.4 },
-      { step: 9.5, side: 4, pool: PATH_TREES, lo: 1, hi: 1.5 }
+      { step: 9.5, side: 4, pool: PATH_TREES, lo: 1, hi: 1.5 },
+      { step: 12, side: 5, pool: PATH_TREES, lo: 1, hi: 1.5 },
+      { step: 14.5, side: 6, pool: PATH_TREES, lo: 1, hi: 1.5 },
+      { step: 17, side: 7, pool: PATH_TREES, lo: 1, hi: 1.5 }
     ];
     for (const row of steps) {
       const indexStep = Math.max(1, Math.round(row.step / SAMPLE_STEP));
@@ -25286,7 +25289,7 @@
             continue;
           const variant = row.pool[(key + (side > 0 ? 3 : 0)) % row.pool.length];
           const scale = row.lo + hash(key, side, 911) * (row.hi - row.lo);
-          const extra = [0.9, 1.4, 2.8, 4.8, 7][row.side];
+          const extra = [0.9, 1.4, 2.8, 4.8, 7, 9, 11, 13][row.side];
           const offset = variant.radius * scale + PATH_HALF_WIDTH + extra;
           const nx = s.x - dz * side * offset;
           const nz = s.z + dx * side * offset;
@@ -25337,8 +25340,15 @@
 
   // js/terrain.js
   var SIZE = 320;
-  var SEGMENTS = 288;
   var HALF = SIZE / 2;
+  var MIN_X = -36;
+  var MAX_X = 36;
+  var MIN_Z = -152;
+  var MAX_Z = 6;
+  var WIDTH = MAX_X - MIN_X;
+  var DEPTH = MAX_Z - MIN_Z;
+  var SEG_X = 84;
+  var SEG_Z = 190;
   function hash2(ix, iy, seed) {
     let h = ix * 374761393 + iy * 668265263 + seed * 1442695041;
     h = (h ^ h >>> 13) * 1274126177;
@@ -25637,13 +25647,13 @@
   function gridHeightAt(x, z) {
     if (!heightGrid)
       return finalHeight(x, z);
-    const gx = clamp01((x + HALF) / SIZE) * SEGMENTS;
-    const gz = clamp01((z + HALF) / SIZE) * SEGMENTS;
-    const ix = Math.min(SEGMENTS - 1, Math.floor(gx));
-    const iz = Math.min(SEGMENTS - 1, Math.floor(gz));
+    const gx = clamp01((x - MIN_X) / WIDTH) * SEG_X;
+    const gz = clamp01((z - MIN_Z) / DEPTH) * SEG_Z;
+    const ix = Math.min(SEG_X - 1, Math.floor(gx));
+    const iz = Math.min(SEG_Z - 1, Math.floor(gz));
     const fx = gx - ix;
     const fz = gz - iz;
-    const n = SEGMENTS + 1;
+    const n = SEG_X + 1;
     const h00 = heightGrid[iz * n + ix];
     const h10 = heightGrid[iz * n + ix + 1];
     const h01 = heightGrid[(iz + 1) * n + ix];
@@ -25654,32 +25664,33 @@
     return gridHeightAt(x, z);
   }
   function buildTerrain(scene2, renderer2) {
-    const n = SEGMENTS + 1;
-    const count = n * n;
+    const nX = SEG_X + 1;
+    const nZ = SEG_Z + 1;
+    const count = nX * nZ;
     heightGrid = new Float32Array(count);
     const positions = new Float32Array(count * 3);
     const uvs = new Float32Array(count * 2);
-    for (let iz = 0; iz < n; iz++) {
-      const z = -HALF + iz / SEGMENTS * SIZE;
-      for (let ix = 0; ix < n; ix++) {
-        const x = -HALF + ix / SEGMENTS * SIZE;
+    for (let iz = 0; iz < nZ; iz++) {
+      const z = MIN_Z + iz / SEG_Z * DEPTH;
+      for (let ix = 0; ix < nX; ix++) {
+        const x = MIN_X + ix / SEG_X * WIDTH;
         const h = finalHeight(x, z);
-        const i = iz * n + ix;
+        const i = iz * nX + ix;
         heightGrid[i] = h;
         positions[i * 3] = x;
         positions[i * 3 + 1] = h;
         positions[i * 3 + 2] = z;
-        uvs[i * 2] = ix / SEGMENTS;
-        uvs[i * 2 + 1] = iz / SEGMENTS;
+        uvs[i * 2] = ix / SEG_X;
+        uvs[i * 2 + 1] = iz / SEG_Z;
       }
     }
-    const indices = new Uint32Array(SEGMENTS * SEGMENTS * 6);
+    const indices = new Uint32Array(SEG_X * SEG_Z * 6);
     let p = 0;
-    for (let iz = 0; iz < SEGMENTS; iz++) {
-      for (let ix = 0; ix < SEGMENTS; ix++) {
-        const a = iz * n + ix;
+    for (let iz = 0; iz < SEG_Z; iz++) {
+      for (let ix = 0; ix < SEG_X; ix++) {
+        const a = iz * nX + ix;
         const b = a + 1;
-        const c2 = a + n;
+        const c2 = a + nX;
         const d = c2 + 1;
         indices[p++] = a;
         indices[p++] = c2;
@@ -25716,6 +25727,8 @@
     }
     geo.setAttribute("color", new BufferAttribute(colors, 3));
     const textures = createGroundTextures(renderer2);
+    textures.albedo.repeat.set(WIDTH / 8, DEPTH / 8);
+    textures.albedo.needsUpdate = true;
     const material = new MeshStandardMaterial({
       map: textures.albedo,
       vertexColors: true,
