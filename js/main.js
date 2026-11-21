@@ -486,7 +486,8 @@ function enterSpectator() {
     yaw: state.yaw,
     pitch: state.pitch,
     fog: scene.fog,
-    background: scene.background.clone(),
+    clearColor: renderer.getClearColor(new THREE.Color()),
+    clearAlpha: renderer.getClearAlpha(),
     groundColor: ground.material.color.clone(),
     lightIntensity: light.intensity,
     lightVisible: light.visible,
@@ -496,7 +497,7 @@ function enterSpectator() {
   // Fullbright inspection: no fog, a daylight sky, no orange cone, and soft
   // shadowless light from every direction instead of the diyo's cramped pool.
   scene.fog = null;
-  scene.background.set(0x8fa6c4);
+  renderer.setClearColor(0x8fa6c4, 1);
   ground.material.color.set(0x39523a);
   light.visible = false;
 
@@ -525,7 +526,7 @@ function exitSpectator() {
 
   if (spectatorSaved) {
     scene.fog = spectatorSaved.fog;
-    scene.background.copy(spectatorSaved.background);
+    renderer.setClearColor(spectatorSaved.clearColor, spectatorSaved.clearAlpha);
     ground.material.color.copy(spectatorSaved.groundColor);
     light.visible = spectatorSaved.lightVisible;
     light.intensity = spectatorSaved.lightIntensity;

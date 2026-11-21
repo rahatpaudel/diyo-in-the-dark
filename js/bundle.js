@@ -30496,14 +30496,15 @@
       yaw: state.yaw,
       pitch: state.pitch,
       fog: scene.fog,
-      background: scene.background.clone(),
+      clearColor: renderer.getClearColor(new Color()),
+      clearAlpha: renderer.getClearAlpha(),
       groundColor: ground.material.color.clone(),
       lightIntensity: light.intensity,
       lightVisible: light.visible,
       lightCastShadow: light.castShadow
     };
     scene.fog = null;
-    scene.background.set(9414340);
+    renderer.setClearColor(9414340, 1);
     ground.material.color.set(3756602);
     light.visible = false;
     const sun = new DirectionalLight(16773853, 5);
@@ -30528,7 +30529,7 @@
     }
     if (spectatorSaved) {
       scene.fog = spectatorSaved.fog;
-      scene.background.copy(spectatorSaved.background);
+      renderer.setClearColor(spectatorSaved.clearColor, spectatorSaved.clearAlpha);
       ground.material.color.copy(spectatorSaved.groundColor);
       light.visible = spectatorSaved.lightVisible;
       light.intensity = spectatorSaved.lightIntensity;
