@@ -8,9 +8,10 @@
  * removed. The right hand + diya stay as the HUD for the rest of the game.
  *
  * One flame object is shared throughout: it starts hidden, appears at the
- * match tip, travels with the hand, then settles into the diya's wick. The
- * shader's wick sits 26% up its quad, so `flame.setWickPosition` handles the
- * offset whenever the flame is moved.
+ * match tip, travels with the hand, then settles into the diya's wick. While
+ * the match is carried over, the right hand tips the diya toward the middle
+ * of the frame so the two meet halfway. The shader's wick sits 26% up its
+ * quad, so `flame.setWickPosition` handles the offset whenever it is moved.
  */
 import * as THREE from './vendor/three.module.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
@@ -20,20 +21,38 @@ const LEFT_URL = HAND_DIR + 'hand_left.glb';
 const RIGHT_URL = HAND_DIR + 'hand_right.glb';
 
 // The right hand's fixed HUD pose. These values put the diya wick at roughly
-// (0.45, -0.42, -1.0) in camera space, which is the same bottom-right spot
-// the standalone flame used to occupy.
+// (0.45, -0.35, -1.0) in camera space, which is the same bottom-right spot
+// the standalone flame used to occupy. It is tipped only slightly forward so
+// the bowl stays level enough to read as carrying oil.
 const RIGHT_POSE = {
   position: [0.43, -0.45, -0.13],
-  rotation: [-0.15, 0, 0],
+  rotation: [-0.07, 0, 0],
   scale: 0.8
 };
+
+// While the match is carried across, the right hand tips the diya toward the
+// middle of the frame so the two hands meet halfway instead of the left arm
+// doing all the reaching. It returns to RIGHT_POSE once the wick is lit.
+const RIGHT_CARRY_POSE = {
+  position: [0.385, -0.435, -0.13],
+  rotation: [-0.04, 0.13, 0.07],
+  scale: 0.8
+};
+
+// When the right hand starts and finishes its inward tilt (seconds).
+const RIGHT_TILT_START = 2.8;
+const RIGHT_TILT_END = 4.3;
+const RIGHT_HOLD_END = 4.9;
+const RIGHT_RETURN_END = 5.65;
 
 // Camera look used for the strike. The rock ray is cast along this direction,
 // and the hand is solved to meet that exact point when the camera arrives.
 const STRIKE_YAW = 0.83;
 const STRIKE_PITCH = -0.25;
 
-// Left-hand strike pose. Mirrored on X so the arm enters from the lower left.
+// Left-hand strike pose. The GLB is already a left hand, so it must not be
+// mirrored: a negative X scale flips the triangle winding and the outside of
+// the arm gets culled while the untextured inside shows through.
 // Keep these near 1: the model's forearm is a metre long, so a larger scale
 // puts the wrist behind the camera and the sleeve covers half the screen.
 const STRIKE_ROT = [0.16, -0.7, 0.05];
@@ -44,6 +63,12 @@ const LIGHT_ROT = [-0.06, -0.34, 0.04];
 const LIGHT_SCALE = 0.72;
 
 const FLAME_MATCH_SCALE = 0.5;
+
+// How far in front of the camera the striking hand is allowed to reach. The
+// rock sits further out; the arm is kept close so the wrist stays near the
+// body and the forearm falls out of the bottom of the frame instead of being
+// stretched across the shot. The rock placement is tuned to this reach later.
+const MAX_STRIKE_REACH = 1.00;
 
 // Where the match sits relative to the strike point just after ignition, and
 // a couple of reusable offsets so the per-frame timeline allocates nothing.
@@ -137,21 +162,17 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     return null;
   }
 
-  // Right hand: fixed HUD pose.
-  right.position.fromArray(RIGHT_POSE.position);
-  right.rotation.set(...RIGHT_POSE.rotation);
-  right.scale.setScalar(RIGHT_POSE.scale);
+  // Right hand: the diya HUD pose.
+  applyRightPose(RIGHT_POSE);
   camera.add(right);
-  right.updateMatrixWorld(true);
 
   // Wick in camera space. Everything about the flame hangs off this point.
   const wickLocal = new THREE.Vector3();
-  diyaWick.getWorldPosition(wickLocal);
-  camera.worldToLocal(wickLocal);
+  wickInCamera(wickLocal);
 
   // Left hand starts just below the frame.
   left.visible = false;
-  left.scale.set(-STRIKE_SCALE, STRIKE_SCALE, STRIKE_SCALE);
+  left.scale.setScalar(STRIKE_SCALE);
   camera.add(left);
 
   // A small warm point light, motivated by the flame, lights the hands and
@@ -177,7 +198,8 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
   const readyPos = new THREE.Vector3();
   const offPos = new THREE.Vector3();
   const lightPos = new THREE.Vector3();
-  const lightTipLocal = new THREE.Vector3();
+  const wickNow = new THREE.Vector3();
+  const carryTarget = new THREE.Vector3();
   const carryStartTip = new THREE.Vector3();
   const tangentLocal = new THREE.Vector3(1, 0, 0);
   const scratch = new THREE.Vector3();
@@ -197,12 +219,58 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
   function solveLeftClean(targetLocal, rot, scale) {
     left.position.set(0, 0, 0);
     left.rotation.set(rot[0], rot[1], rot[2]);
-    left.scale.set(-scale, scale, scale);
+    left.scale.setScalar(scale);
     left.updateMatrixWorld(true);
     matchTip.getWorldPosition(solveScratch);
     camera.worldToLocal(solveScratch);
     left.position.add(targetLocal).sub(solveScratch);
     left.updateMatrixWorld(true);
+  }
+
+  /* ---- Right hand poses -------------------------------------------- */
+  function applyRightPose(pose) {
+    right.position.fromArray(pose.position);
+    right.rotation.set(pose.rotation[0], pose.rotation[1], pose.rotation[2]);
+    right.scale.setScalar(pose.scale);
+    right.updateMatrixWorld(true);
+  }
+
+  /** How far the diya is tipped toward the middle of the shot, 0..1. */
+  function rightTilt(time) {
+    if (time < RIGHT_TILT_START) return 0;
+    if (time < RIGHT_TILT_END) {
+      return smoother((time - RIGHT_TILT_START) / (RIGHT_TILT_END - RIGHT_TILT_START));
+    }
+    if (time < RIGHT_HOLD_END) return 1;
+    if (time < RIGHT_RETURN_END) {
+      return 1 - smoother((time - RIGHT_HOLD_END) / (RIGHT_RETURN_END - RIGHT_HOLD_END));
+    }
+    return 0;
+  }
+
+  function poseRight(time) {
+    const k = rightTilt(time);
+    const a = RIGHT_POSE;
+    const b = RIGHT_CARRY_POSE;
+    right.position.set(
+      lerp(a.position[0], b.position[0], k),
+      lerp(a.position[1], b.position[1], k),
+      lerp(a.position[2], b.position[2], k)
+    );
+    right.rotation.set(
+      lerp(a.rotation[0], b.rotation[0], k),
+      lerp(a.rotation[1], b.rotation[1], k),
+      lerp(a.rotation[2], b.rotation[2], k)
+    );
+    right.scale.setScalar(lerp(a.scale, b.scale, k));
+    right.updateMatrixWorld(true);
+  }
+
+  /** The diya wick in camera space for the current right-hand pose. */
+  function wickInCamera(out) {
+    diyaWick.getWorldPosition(out);
+    camera.worldToLocal(out);
+    return out;
   }
 
   /** Find the exact rock face the camera will look at. */
@@ -218,6 +286,15 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     const hits = raycaster.intersectObject(rock, false);
     if (hits.length) {
       strikeWorld.copy(hits[0].point);
+
+      // Pull the strike point toward the camera along the same ray. The hand
+      // stays near the body; the rock is moved to meet it later.
+      if (strikeWorld.distanceTo(camera.position) > MAX_STRIKE_REACH) {
+        strikeWorld
+          .sub(camera.position)
+          .setLength(MAX_STRIKE_REACH)
+          .add(camera.position);
+      }
 
       // Scrape direction: downhill along the face the match touches.
       const face = hits[0].face;
@@ -262,15 +339,22 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     readyPos.copy(strikePos).add(new THREE.Vector3(0.02, 0.07, 0.13));
     offPos.copy(strikePos).add(new THREE.Vector3(0.02, -1.15, 0.22));
 
-    // Match tip just above the wick.
-    lightTipLocal.copy(wickLocal).add(new THREE.Vector3(0, 0.07, 0.015));
-    solveLeftClean(lightTipLocal, LIGHT_ROT, LIGHT_SCALE);
+    // The match arrives while the right hand is tipped inward, so solve the
+    // carry pose against the wick where it will actually be.
+    applyRightPose(RIGHT_CARRY_POSE);
+    wickInCamera(wickNow);
+    carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+    solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
     lightPos.copy(left.position);
+
+    // Back to the HUD pose for the first frame of the pan.
+    applyRightPose(RIGHT_POSE);
+    wickInCamera(wickNow);
 
     // Reset for the first frame of the pan.
     left.position.copy(offPos);
     left.rotation.set(...STRIKE_ROT);
-    left.scale.set(-STRIKE_SCALE, STRIKE_SCALE, STRIKE_SCALE);
+    left.scale.setScalar(STRIKE_SCALE);
     left.visible = true;
     left.updateMatrixWorld(true);
 
@@ -306,6 +390,11 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     finished = true;
     left.visible = false;
     dropLeft();
+
+    // Hand the diya back at its resting pose before pinning the flame.
+    applyRightPose(RIGHT_POSE);
+    wickInCamera(wickLocal);
+
     flame.setVisible(true);
     flame.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
     handLight.position.copy(wickLocal);
@@ -334,10 +423,11 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     //   1.25-1.55  hand moves onto the stone
     //   1.55-2.30  two short scrapes, ignite on the second
     //   2.30-2.80  match catches, hand pulls back
-    //   2.80-4.30  camera returns while the match is carried to the diya
+    //   2.80-4.30  camera returns while the match is carried to the diya and
+    //              the right hand tips the diya inward
     //   4.30-4.70  flame passes to the wick
     //   4.70-5.35  left hand lowers out of frame
-    //   5.35-5.80  settle, hand over to gameplay
+    //   5.35-5.80  diya settles back to its HUD pose, hand over to gameplay
 
     // ---- camera ----
     let yaw = 0;
@@ -367,6 +457,11 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
     setView(yaw, pitch);
     camera.updateMatrixWorld(true);
 
+    // The right hand brings the diya toward the middle of the frame while the
+    // match travels over, then returns to its resting HUD pose.
+    poseRight(time);
+    wickInCamera(wickNow);
+
     // ---- hand path ----
     if (time < PAN_END) {
       const e = smooth((time - 0.05) / (PAN_END - 0.15));
@@ -386,9 +481,11 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
       left.position.copy(strikePos).addScaledVector(PULLBACK, e);
     } else if (time < CARRY_END) {
       // Interpolate the visible tip along a small arc, re-solving the arm so
-      // the flame travels smoothly to the wick even as the camera turns back.
+      // the flame travels smoothly to the wick even as the camera turns back
+      // and the right hand tips the diya toward the middle.
       const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
-      const t = scratch.copy(carryStartTip).lerp(lightTipLocal, e);
+      carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+      const t = scratch.copy(carryStartTip).lerp(carryTarget, e);
       t.y += Math.sin(Math.PI * e) * 0.11;
       t.x += Math.sin(Math.PI * e) * 0.03;
       const rot = [
@@ -398,7 +495,10 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
       ];
       solveLeftClean(t, rot, lerp(STRIKE_SCALE, LIGHT_SCALE, e));
     } else if (time < TRANSFER_END) {
-      solveLeftClean(lightTipLocal, LIGHT_ROT, LIGHT_SCALE);
+      carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+      solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
+      // Remember where the match ended up: the drop starts from here.
+      lightPos.copy(left.position);
     } else if (time < DROP_END) {
       const e = smooth((time - TRANSFER_END) / (DROP_END - TRANSFER_END));
       // Drift left while sinking so the hand doesn't just vanish behind the
@@ -433,17 +533,18 @@ export function createIntro({ camera, flame, spot, hands, environment, setView, 
         spot.intensity = 16 * smooth((time - IGNITE_AT) / 1.1);
       } else if (time < TRANSFER_END) {
         const e = smoother((time - CARRY_END) / (TRANSFER_END - CARRY_END));
-        const x = lerp(tip.x, wickLocal.x, e);
-        const y = lerp(tip.y, wickLocal.y, e);
-        const z = lerp(tip.z, wickLocal.z, e);
+        const x = lerp(tip.x, wickNow.x, e);
+        const y = lerp(tip.y, wickNow.y, e);
+        const z = lerp(tip.z, wickNow.z, e);
         const s = lerp(FLAME_MATCH_SCALE, 1, e);
         flame.setWickPosition(x, y, z, s);
         handLight.position.set(x, y + 0.08, z);
         handLight.intensity = lerp(3.0, 4.2, e);
         spot.intensity = lerp(16, 40, e);
       } else {
-        flame.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
-        handLight.position.copy(wickLocal);
+        // The right hand may still be settling back; the flame rides the wick.
+        flame.setWickPosition(wickNow.x, wickNow.y, wickNow.z, 1);
+        handLight.position.copy(wickNow);
         handLight.position.y += 0.08;
         handLight.intensity = 4.2;
         spot.intensity = 40;

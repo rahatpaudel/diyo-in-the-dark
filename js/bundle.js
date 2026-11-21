@@ -25188,9 +25188,18 @@
   var RIGHT_URL = HAND_DIR + "hand_right.glb";
   var RIGHT_POSE = {
     position: [0.43, -0.45, -0.13],
-    rotation: [-0.15, 0, 0],
+    rotation: [-0.07, 0, 0],
     scale: 0.8
   };
+  var RIGHT_CARRY_POSE = {
+    position: [0.385, -0.435, -0.13],
+    rotation: [-0.04, 0.13, 0.07],
+    scale: 0.8
+  };
+  var RIGHT_TILT_START = 2.8;
+  var RIGHT_TILT_END = 4.3;
+  var RIGHT_HOLD_END = 4.9;
+  var RIGHT_RETURN_END = 5.65;
   var STRIKE_YAW = 0.83;
   var STRIKE_PITCH = -0.25;
   var STRIKE_ROT = [0.16, -0.7, 0.05];
@@ -25198,6 +25207,7 @@
   var LIGHT_ROT = [-0.06, -0.34, 0.04];
   var LIGHT_SCALE = 0.72;
   var FLAME_MATCH_SCALE = 0.5;
+  var MAX_STRIKE_REACH = 1;
   var PULLBACK = new Vector3(0.01, 0.05, 0.11);
   var SCRAPE_DISTANCE = 0.07;
   var PAN_END = 1.25;
@@ -25268,16 +25278,12 @@
       console.warn("[intro] hand rig is missing match_tip or diya_wick");
       return null;
     }
-    right.position.fromArray(RIGHT_POSE.position);
-    right.rotation.set(...RIGHT_POSE.rotation);
-    right.scale.setScalar(RIGHT_POSE.scale);
+    applyRightPose(RIGHT_POSE);
     camera2.add(right);
-    right.updateMatrixWorld(true);
     const wickLocal = new Vector3();
-    diyaWick.getWorldPosition(wickLocal);
-    camera2.worldToLocal(wickLocal);
+    wickInCamera(wickLocal);
     left.visible = false;
-    left.scale.set(-STRIKE_SCALE, STRIKE_SCALE, STRIKE_SCALE);
+    left.scale.setScalar(STRIKE_SCALE);
     camera2.add(left);
     const handLight = new PointLight(16751164, 0, 3.2, 2);
     handLight.position.copy(wickLocal).add(new Vector3(0, 0.1, 0));
@@ -25292,7 +25298,8 @@
     const readyPos = new Vector3();
     const offPos = new Vector3();
     const lightPos = new Vector3();
-    const lightTipLocal = new Vector3();
+    const wickNow = new Vector3();
+    const carryTarget = new Vector3();
     const carryStartTip = new Vector3();
     const tangentLocal = new Vector3(1, 0, 0);
     const scratch = new Vector3();
@@ -25307,12 +25314,53 @@
     function solveLeftClean(targetLocal, rot, scale) {
       left.position.set(0, 0, 0);
       left.rotation.set(rot[0], rot[1], rot[2]);
-      left.scale.set(-scale, scale, scale);
+      left.scale.setScalar(scale);
       left.updateMatrixWorld(true);
       matchTip.getWorldPosition(solveScratch);
       camera2.worldToLocal(solveScratch);
       left.position.add(targetLocal).sub(solveScratch);
       left.updateMatrixWorld(true);
+    }
+    function applyRightPose(pose) {
+      right.position.fromArray(pose.position);
+      right.rotation.set(pose.rotation[0], pose.rotation[1], pose.rotation[2]);
+      right.scale.setScalar(pose.scale);
+      right.updateMatrixWorld(true);
+    }
+    function rightTilt(time2) {
+      if (time2 < RIGHT_TILT_START)
+        return 0;
+      if (time2 < RIGHT_TILT_END) {
+        return smoother((time2 - RIGHT_TILT_START) / (RIGHT_TILT_END - RIGHT_TILT_START));
+      }
+      if (time2 < RIGHT_HOLD_END)
+        return 1;
+      if (time2 < RIGHT_RETURN_END) {
+        return 1 - smoother((time2 - RIGHT_HOLD_END) / (RIGHT_RETURN_END - RIGHT_HOLD_END));
+      }
+      return 0;
+    }
+    function poseRight(time2) {
+      const k = rightTilt(time2);
+      const a = RIGHT_POSE;
+      const b = RIGHT_CARRY_POSE;
+      right.position.set(
+        lerp2(a.position[0], b.position[0], k),
+        lerp2(a.position[1], b.position[1], k),
+        lerp2(a.position[2], b.position[2], k)
+      );
+      right.rotation.set(
+        lerp2(a.rotation[0], b.rotation[0], k),
+        lerp2(a.rotation[1], b.rotation[1], k),
+        lerp2(a.rotation[2], b.rotation[2], k)
+      );
+      right.scale.setScalar(lerp2(a.scale, b.scale, k));
+      right.updateMatrixWorld(true);
+    }
+    function wickInCamera(out) {
+      diyaWick.getWorldPosition(out);
+      camera2.worldToLocal(out);
+      return out;
     }
     function findStrike() {
       if (!rock)
@@ -25327,6 +25375,9 @@
       const hits = raycaster.intersectObject(rock, false);
       if (hits.length) {
         strikeWorld.copy(hits[0].point);
+        if (strikeWorld.distanceTo(camera2.position) > MAX_STRIKE_REACH) {
+          strikeWorld.sub(camera2.position).setLength(MAX_STRIKE_REACH).add(camera2.position);
+        }
         const face = hits[0].face;
         if (face) {
           const instance = new Matrix4();
@@ -25360,12 +25411,16 @@
       carryStartTip.copy(strikeLocal).add(PULLBACK);
       readyPos.copy(strikePos).add(new Vector3(0.02, 0.07, 0.13));
       offPos.copy(strikePos).add(new Vector3(0.02, -1.15, 0.22));
-      lightTipLocal.copy(wickLocal).add(new Vector3(0, 0.07, 0.015));
-      solveLeftClean(lightTipLocal, LIGHT_ROT, LIGHT_SCALE);
+      applyRightPose(RIGHT_CARRY_POSE);
+      wickInCamera(wickNow);
+      carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+      solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
       lightPos.copy(left.position);
+      applyRightPose(RIGHT_POSE);
+      wickInCamera(wickNow);
       left.position.copy(offPos);
       left.rotation.set(...STRIKE_ROT);
-      left.scale.set(-STRIKE_SCALE, STRIKE_SCALE, STRIKE_SCALE);
+      left.scale.setScalar(STRIKE_SCALE);
       left.visible = true;
       left.updateMatrixWorld(true);
       setView2(0, 0);
@@ -25404,6 +25459,8 @@
       finished = true;
       left.visible = false;
       dropLeft();
+      applyRightPose(RIGHT_POSE);
+      wickInCamera(wickLocal);
       flame2.setVisible(true);
       flame2.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
       handLight.position.copy(wickLocal);
@@ -25449,6 +25506,8 @@
       }
       setView2(yaw, pitch);
       camera2.updateMatrixWorld(true);
+      poseRight(time);
+      wickInCamera(wickNow);
       if (time < PAN_END) {
         const e = smooth((time - 0.05) / (PAN_END - 0.15));
         left.position.lerpVectors(offPos, readyPos, e);
@@ -25468,7 +25527,8 @@
         left.position.copy(strikePos).addScaledVector(PULLBACK, e);
       } else if (time < CARRY_END) {
         const e = smoother((time - CARRY_START) / (CARRY_END - CARRY_START));
-        const t = scratch.copy(carryStartTip).lerp(lightTipLocal, e);
+        carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+        const t = scratch.copy(carryStartTip).lerp(carryTarget, e);
         t.y += Math.sin(Math.PI * e) * 0.11;
         t.x += Math.sin(Math.PI * e) * 0.03;
         const rot = [
@@ -25478,7 +25538,9 @@
         ];
         solveLeftClean(t, rot, lerp2(STRIKE_SCALE, LIGHT_SCALE, e));
       } else if (time < TRANSFER_END) {
-        solveLeftClean(lightTipLocal, LIGHT_ROT, LIGHT_SCALE);
+        carryTarget.set(wickNow.x, wickNow.y + 0.07, wickNow.z + 0.015);
+        solveLeftClean(carryTarget, LIGHT_ROT, LIGHT_SCALE);
+        lightPos.copy(left.position);
       } else if (time < DROP_END) {
         const e = smooth((time - TRANSFER_END) / (DROP_END - TRANSFER_END));
         left.position.copy(lightPos);
@@ -25504,17 +25566,17 @@
           spot.intensity = 16 * smooth((time - IGNITE_AT) / 1.1);
         } else if (time < TRANSFER_END) {
           const e = smoother((time - CARRY_END) / (TRANSFER_END - CARRY_END));
-          const x = lerp2(tip.x, wickLocal.x, e);
-          const y = lerp2(tip.y, wickLocal.y, e);
-          const z = lerp2(tip.z, wickLocal.z, e);
+          const x = lerp2(tip.x, wickNow.x, e);
+          const y = lerp2(tip.y, wickNow.y, e);
+          const z = lerp2(tip.z, wickNow.z, e);
           const s = lerp2(FLAME_MATCH_SCALE, 1, e);
           flame2.setWickPosition(x, y, z, s);
           handLight.position.set(x, y + 0.08, z);
           handLight.intensity = lerp2(3, 4.2, e);
           spot.intensity = lerp2(16, 40, e);
         } else {
-          flame2.setWickPosition(wickLocal.x, wickLocal.y, wickLocal.z, 1);
-          handLight.position.copy(wickLocal);
+          flame2.setWickPosition(wickNow.x, wickNow.y, wickNow.z, 1);
+          handLight.position.copy(wickNow);
           handLight.position.y += 0.08;
           handLight.intensity = 4.2;
           spot.intensity = 40;
